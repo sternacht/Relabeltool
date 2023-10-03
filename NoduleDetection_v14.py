@@ -1781,6 +1781,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.current_slice = num_slice
             self.set_slider()
 
+
     """
     Process Slider
     """
