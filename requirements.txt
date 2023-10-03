@@ -1,0 +1,11 @@
+numpy
+opencv-python
+opencv-contrib-python
+pyqt5
+pandas
+scikit-image
+scipy
+matplotlib
+SimpleITK
+torch
+torchvision
