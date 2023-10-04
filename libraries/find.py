@@ -1,6 +1,7 @@
 import os
 import SimpleITK as sitk
 from glob import glob
+from typing import List, Dict, Tuple, Any
 from .database import gen_dicom_path
 
 PATH_DICOM = r"../Database\Dicom"
@@ -51,20 +52,45 @@ def check_dir(dirname):
         return True, dirname
     return False, None
 
-def refresh(history, dicom_db, path_dicom= PATH_DICOM, loaded_path=[]):
+def refresh(history: List[Dict[str, Any]], 
+            dicom_db,
+            path_dicom: str = PATH_DICOM, 
+            loaded_path: List[Dict[str, Any]] = []) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Refresh the table of patients' information
+    Args:
+        history: List[Dict[str, Any]
+            list of patients' information, e.g.: [{'PatientID': '000569}, {'PatientID': '000570'}]
+        dicom_db: DicomDatabaseAPI
+            database API
+        path_dicom: str
+            A path to dicom folder
+        loaded_path: List[Dict[str, Any]
+            A list of loaded path, this is used to avoid loading the same path twice
+    Returns: Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]
+        A tuple of (history, loaded_path)
+    """
     path_dicom = os.path.abspath(path_dicom)
-    can_relabel = dicom_db.get_can_do_relabel()
-    for dir_can_relabel in can_relabel.values():
-        dirname = gen_dicom_path(*(dir_can_relabel[0]))
+    
+    series_path_and_relabel_status = dicom_db.get_all_series_path_and_relabel_status()
+    for folder_info, relabel_status in series_path_and_relabel_status.values(): # folder_info: (patient_id, study_id, series_id)
+        dirname = gen_dicom_path(*folder_info)
         if dirname not in loaded_path:
             patient_info = read_patient_infor(os.path.join(path_dicom, dirname, 'dicom'))
-            patient_info['LOG'] = dirname
             loaded_path.append(dirname)
             history.append(patient_info)
         else:
-            patient_info = list(filter(lambda x:x["LOG"] == dirname, history))[0]
-        patient_info['Confirmed'] = 'V' if dir_can_relabel[1] else None
-    history.sort(key=lambda x:x["PatientID"])
+            patient_info = list(filter(lambda x:dirname in x["Path"], history))[0]
+        
+        # Add relabel status    
+        is_relabel, relabel_user_name = relabel_status
+        if is_relabel:
+            patient_info['Confirmed_User'] = relabel_user_name
+            patient_info['Confirmed'] = 'V'
+        else:
+            patient_info['Confirmed_User'] = None
+            patient_info['Confirmed'] = None
+        
+    history.sort(key = lambda x: x["PatientID"])
     # print(history)
     return history, loaded_path
 

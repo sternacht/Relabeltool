@@ -8,6 +8,7 @@ except ImportError:
 
 import sys
 import os
+from typing import List, Tuple, Dict
 from .save.pickleData import load_dict, load
 from .utilsUI import new_action
 
@@ -33,6 +34,32 @@ class help_dialog(QDialog):
         self.buttonBox.rejected.connect(self.reject)
 
         layout.addWidget(self.buttonBox)
+
+class ConfirmedStatusDialog(QDialog):
+    def __init__(self, confirmed_status: Dict[str, int], parent = None):
+        super().__init__(parent=parent)
+
+        # Create table
+        self.tableWidget = QTableWidget()
+        self.tableWidget.setRowCount(len(confirmed_status))
+        header = ['User_Name', 'Confirmed_Number']
+        self.tableWidget.setColumnCount(len(header))
+        self.tableWidget.setHorizontalHeaderLabels(header)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.tableWidget)
+        self.setLayout(layout)
+        self.setWindowTitle('Confirmed Status')
+
+        self.init_table(confirmed_status)
+        
+
+    def init_table(self, confirmed_status: Dict[str, int]):
+        for i, (user_name, confirmed_number) in enumerate(confirmed_status.items()):
+            item = QTableWidgetItem(user_name)
+            self.tableWidget.setItem(i, 0, item)
+            item = QTableWidgetItem(str(confirmed_number))
+            self.tableWidget.setItem(i, 1, item)
 
     
 class change_size(QDialog):

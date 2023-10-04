@@ -17,17 +17,16 @@ class TableWidget_List(QTableWidget):
         selection-color: #000000;
     }
     """
-    delete_row_signal = pyqtSignal()
     def __init__(self, header = None):
         if header is None or len(header) == 0:
             self.header = ['PatientID','Name', 'Confirmed',
-                            'Gender', 'Date_of_Birth',
+                           'Confirmed_User', 'Gender', 'Date_of_Birth',
                             'Modality', 'Date_of_Study', 
-                            'Path', 'Style', 'LOG']
+                            'Path', 'Style']
             self.title = ['PatientID','Name', 'Confirmed',
-                            'Gender', 'Date of Birth',
+                          'Confirmed_User', 'Gender', 'Date of Birth',
                             'Modality', 'Date of Study', 
-                            'Path', 'Style', 'LOG']
+                            'Path', 'Style']
         else:
             self.header = header
         super().__init__(0, len(self.header))
@@ -59,7 +58,7 @@ class TableWidget_List(QTableWidget):
             for row, itemvalue in enumerate(data):
                 for column, key in enumerate(self.header):
                     newitem = QTableWidgetItem(data[row][key])
-                    if key == "Path" or key == 'LOG':
+                    if key == "Path":
                         newitem.setTextAlignment(Qt.AlignAbsolute | Qt.AlignLeft)
                     else:
                         newitem.setTextAlignment(Qt.AlignAbsolute | Qt.AlignRight)
@@ -115,7 +114,6 @@ class TableWidget_List(QTableWidget):
     def delete_patient(self):
         index = self.currentRow()
         self._removeRow_index(index)
-        self.delete_row_signal.emit()
         self.update()
     
     def sortByHeader(self, logicalIndex):

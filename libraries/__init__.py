@@ -1,6 +1,6 @@
 from .ustr import ustr
 from .loadingDialog import loadingDialog, ProgressDialog
-from .log_dialog import FileSystemView, help_dialog, change_size
+from .log_dialog import FileSystemView, help_dialog, change_size, ConfirmedStatusDialog
 
 from .image import load_images, gene_merge, loadMHD, load_Dicom
 

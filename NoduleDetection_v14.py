@@ -2,9 +2,9 @@ import sys
 import os
 import time
 import cv2
-from numpy import argmin
+import argparse
 from pprint import PrettyPrinter
-
+from collections import defaultdict
 # from grabcut_dialog import grabcut_dialog
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 try: 
@@ -177,8 +177,12 @@ class WindowUI_Mixin(object):
 
 class MainWindow(QMainWindow, WindowUI_Mixin):
 
-    def __init__(self, parent = None) -> None:
+    def __init__(self, 
+                 user_name: str,
+                 parent = None, 
+                 ) -> None:
         super().__init__(parent)
+        self._init_paramters()
         self.startParam()
         
         self.setup_ui()
@@ -187,6 +191,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.build_ui()
         self.setStatusBar_custom()
 
+        self.user_name = user_name
+        
+    def _init_paramters(self):
+        self.history = [] # keep the information of each series
+        self.loaded_path = []
+    
     def startParam(self):
         "Initial or restart all parameter "
         "Basic"
@@ -231,8 +241,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.dicom_db_path = const.DICOM_DB
         # self.history_path = os.path.join(os.getcwd(),"history.dat")
         # self.history = pck.load(self.history_path)
-        self.history = []
-        self.loaded_path = []
+        
 
         self.update_recent_file()
         self.results_nodule = None
@@ -250,7 +259,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.interactiveModel = None
         self.output_keys = ['output']
         self.predmask = None
-
 
     def setup_ui(self):
         self.setObjectName("MainWindow")
@@ -529,7 +537,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         show_shortcut = action('Help Category', lambda: help_dialog(self).exec_(), None, 'help', 'shortcut')
 
-        show_confirm_status = action('Confirmed Status', self.confirmed_status, None, 'Show Confirmed Status', 'status')
+        show_confirm_status = action('Confirmed Status', self.show_confirmed_status, None, 'Show Confirmed Status', 'status')
 
         save = action('Save', self.save_all_labels,
                       'Ctrl+S', 'save', 'save Detail', enabled=False)
@@ -666,7 +674,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         # self.tableFile.itemSelectionChanged.connect(self.load_from_table)
         self.tableFile.itemDoubleClicked.connect(self.load_from_table)
-        self.tableFile.delete_row_signal.connect(self.save_history)
         self.lineEdit.returnPressed.connect(self.gotoClicked)
         # self.blood_vessel_CBox.toggled.connect(self.removeVesselClicked)
 
@@ -724,7 +731,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                                                      loaded_path=self.loaded_path)
         self.tableFile.clear()
         self.tableFile._addData(self.history)
-        c = len(list(filter(lambda x:x["Confirmed"]=="V", self.history)))
+        c = len(list(filter(lambda x:x["Confirmed"] != None, self.history)))
         self.tableFile.title[2] = f"Confirmed({c})"
         self.tableFile.setHorizontalHeaderLabels(self.tableFile.title)
         self.update()               
@@ -815,10 +822,16 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         "Show information in status bar"
         self.statusBar().showMessage(message, delay)
 
-    def confirmed_status(self):
-        ok = QMessageBox.Ok
-        msg = u'\nNobody confirmed any series umf\n\nthis is a demo program so stfu\n\nwhy u not just press ok\nand\nLEAVE'
-        return QMessageBox.information(self, u'Confirmed status', msg, ok)
+    def show_confirmed_status(self):
+        confirmed_status = defaultdict(int)
+        for series_info in self.history:
+            user_name = series_info['Confirmed_User']
+            if user_name != None:
+                confirmed_status[user_name] += 1
+                
+        from libraries.log_dialog import ConfirmedStatusDialog
+        dialog = ConfirmedStatusDialog(confirmed_status, parent=self)
+        dialog.exec_()
     
     def keyReleaseEvent(self, event:QKeyEvent):
         # if event.key() == Qt.Key_Control:
@@ -1374,11 +1387,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         if self.label_file is None:
             self.label_file = Label_Save(self.save_dir)
         t = time.localtime()
-        text = time.strftime("%y%m%d_%H%M%S", t)
+        timestamp = time.strftime("%y%m%d_%H%M%S", t)
         # text, ok = QInputDialog().getText(self, 'saving log', '請輸入存檔檔名', QLineEdit.Normal, text)
         # if not ok:
         #     return
-        file_name = "log_{}".format(text)
+        file_name = f'log_{timestamp}_{self.user_name}'
         self.label_file.save_label_pickle(file_name, self.results_nodule)
         self.save_status = False
         saved_notify()
@@ -1405,18 +1418,22 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                         nodule_mask[key-1] = np.bitwise_or(nodule_mask[key-1],mask.copy())
         mask_filename, split_dirname = database.gen_dicom_file_name_from_path(self.dirname)
         nodule_mask = np.transpose(nodule_mask, (1,2,0))
-        checked, resampled_mask = inference.resample_ct_scan.resample_mask(self.dirname, 
-                                                                            np.flip(nodule_mask,-1),
-                                                                            np.array(self.patient_infor["Spacing"]))
+        
+        from libraries.inference import resample_ct_scan
+        checked, resampled_mask = resample_ct_scan.resample_mask(self.dirname, 
+                                                                np.flip(nodule_mask,-1),
+                                                                np.array(self.patient_infor["Spacing"]))
         if checked:
             if self.label_file is None:
                 self.label_file = Label_Save(self.save_dir)
-            self.label_file.save_mask_npz('raw_'+mask_filename, nodule_mask)
+            self.label_file.save_mask_npz('raw_' + mask_filename, nodule_mask)
             self.label_file.save_mask_npz(mask_filename, resampled_mask)
             saved_notify()
-            with database.DicomDatabaseAPI(self.dicom_db_path) as dbapi:
-                series_id = dbapi.get_series_id_by_folder_info(*[int(d) for d in split_dirname])
-                dbapi.update_is_relabel(series_id, True)
+            with database.DicomDatabaseAPI(self.dicom_db_path) as db_api:
+                series_id = db_api.get_series_id_by_folder_info(*[int(d) for d in split_dirname])
+                db_api.update_is_relabel(series_id, True)
+                db_api.update_relabel_user(series_id, self.user_name)
+                
             table_target = list(filter(lambda x:x['Path']==self.dirname,self.history))
             if len(table_target) > 0:
                 table_idx = self.history.index(table_target[0])
@@ -1424,7 +1441,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 newitem = QTableWidgetItem('V')
                 newitem.setTextAlignment(Qt.AlignAbsolute | Qt.AlignRight)
                 self.tableFile.setItem(table_idx, 2, newitem)
-            c = len(list(filter(lambda x:x["Confirmed"] == 'V', self.history)))
+            c = len(list(filter(lambda x: x["Confirmed"] == 'V', self.history)))
             self.tableFile.title[2] = f"Confirmed({c})"
             self.tableFile.setHorizontalHeaderLabels(self.tableFile.title)
         else:
@@ -1591,11 +1608,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.setEnabled(True)
         if self.patient_infor is not None:
 
-            # self.patient_infor['LOG'] = self.path_log
 
             # self.tableFile._addRow_Dict(self.patient_infor)
             self.listFileWidget._addData(self.patient_infor)
-            # self.save_history()
 
             # self.path_log = os.path.join(self.save_dir, "log")
             self.set_clean()
@@ -1605,9 +1620,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.group_box_lung_nodule.setTitle("Total Lung Nodules")
         self.confirm.setEnabled(False)
     
-    def save_history(self):
-        # self.history = self.tableFile.getListValue()
-        pck.save(self.history_path, self.history)
 
     def getImgData(self, imgData, mImgList, mImgSize):
         """
@@ -1901,8 +1913,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         try:
             if items != []:
                 position = items[0].row()
-                path = items[-3].text()
-                style = items[-2].text()
+                path = items[-2].text()
+                style = items[-1].text()
                 self.path_log = path
                 if path is None:
                     return
@@ -1932,12 +1944,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
                 else:
                     self.tableFile._removeRow_index(position)
-                    self.save_history()
                 self.save.setEnabled(True)
                 self.measure.setEnabled(True)
         except:
             self.tableFile._removeRow_index(position)
-            self.save_history()
             self.errorMessage(u'Error opening file',
                                 u"<p>Make sure <i></i> is a valid image file.")
 
@@ -2494,14 +2504,24 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.inforMessage("Propagate", "Propagate Finished")
         self.toggle_segment_mode(False)
         
-
+def get_args():
+    parser = argparse.ArgumentParser(description='Lung Nodule Detection')
+    parser.add_argument('--user_name', type=str, default='default', help='user_name name')
+    args = parser.parse_args()
+    return args
 
 if __name__ == "__main__":
     full_path = os.path.realpath(__file__)
     os.chdir(os.path.dirname(full_path))
     app = QApplication(sys.argv)
     app.setStyle("QtCurve")
-    window = MainWindow()
+    
+    # Get user name
+    args = get_args()
+    user_name = args.user_name
+    
+    # Set up main window
+    window = MainWindow(user_name = user_name)
     window.setWindowIcon(QIcon('./sources/detect.ico'))
     window.setWindowTitle(__appname__)
     # window.show()
