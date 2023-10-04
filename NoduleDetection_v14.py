@@ -5,6 +5,8 @@ import cv2
 import argparse
 from pprint import PrettyPrinter
 from collections import defaultdict
+from typing import List, Dict, Tuple, Union, Optional, Any
+from numpy.typing import NDArray, ArrayLike
 # from grabcut_dialog import grabcut_dialog
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 try: 
@@ -244,7 +246,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         
 
         self.update_recent_file()
-        self.results_nodule = None
+        self.results_nodule = None # Dict[int, List[Dict[str, Any]]], dict of pair (int, list of dict), key is slice index, value is list of dict
         self.results_nodule_analysis = None
 
         self.mask_segment = None
@@ -529,7 +531,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         delete = action('Del Box', self.delete_selected_shape, 'Del', 'delete', 'delBoxDetail', enabled = False)
 
-        undo = action("Undo", self.undoShapeEdit, 'Z', None, 'Undo last add and edit shape')
+        undo = action("Undo", self.undo_shape_edit, 'Z', None, 'Undo last add and edit shape')
 
         undoLastPoint = action("Undo Last Point", self.display.canvas.undoLastPoint, 'Ctrl+z', None, "Reomove selected point", enabled=False)
 
@@ -687,8 +689,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.reset_hidden_mode()
 
         self.segmentation_button.clicked.connect(self.firstClickSegment)
-        self.undoSegment_button.clicked.connect(self.undoShapeEdit)
-        self.resetSegment_button.clicked.connect(self.resetSegmentation)
+        self.undoSegment_button.clicked.connect(self.undo_shape_edit)
+        self.resetSegment_button.clicked.connect(self.reset_segmentation)
         self.finishSegment_button.clicked.connect(self.finishSegment)
 
         # self.tableFile.clear()
@@ -905,7 +907,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def update_recent_file(self):
         self.recent_files = [value.get('Path', "") for value in self.history]
 
-    def undoShapeEdit(self):
+    def undo_shape_edit(self):
         if not self.undoSegment_button.isEnabled():
             print('not now')
             return
@@ -2252,24 +2254,26 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         shapes = self.display.shapes()
         seq_points = []
         
+        # Get the points from the shapes
         for shape in shapes:
             if shape.shape_type == 'point':
+                x = shape.points[0].x()
+                y = shape.points[0].y()
                 if shape.positive:
-                    point = (shape.points[0].x(), shape.points[0].y(), 1)
-                    seq_points.append(point)
+                    point = (x, y, 1)
                 else:
-                    point = (shape.points[0].x(), shape.points[0].y(), 0)
-                    seq_points.append(point)
-        seq_points = np.array(seq_points, dtype=np.int64)
+                    point = (x, y, 0)
+                seq_points.append(point)
+        seq_points = np.array(seq_points, dtype = np.int64) # shape = (n, 3)
         self.prev_points = seq_points.copy()
         
-        if self.interactiveModel is not None and len(seq_points)> 0:
+        if self.interactiveModel is not None and len(seq_points) > 0:
             try:
                 self.toggle_segment_mode(True)
-                first_click = seq_points[0,:2]
-                pred = predict(self.interactiveModel, self.image_data_dict[self.current_slice]['data'],seq_points, self.output_keys, if_sis=True,if_cuda=False)
+                first_click = seq_points[0, :2]
+                pred = predict(self.interactiveModel, self.image_data_dict[self.current_slice]['data'], seq_points, self.output_keys, if_sis=True, if_cuda=False)
                 self.predmask = pred
-                merge =  gene_merge(pred, self.image_data_dict[self.current_slice]['data'])
+                merge = gene_merge(pred, self.image_data_dict[self.current_slice]['data'])
                 image = QImage(merge.data, merge.shape[1], merge.shape[0], merge.shape[1]*3,  QImage.Format_RGB888)
                 self.display.canvas.loadPixmap(QPixmap.fromImage(image), clear_shapes=False)
                 self.zoomDisplay.canvas.loadPixmap(QPixmap.fromImage(image), clear_shapes=False)
@@ -2284,7 +2288,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                             self.image_data_dict[self.current_slice]['mode'])
             self.toggle_segment_mode(False)
 
-    def resetSegmentation(self):
+    def reset_segmentation(self):
         shapes = self.display.shapes()
         
         self.display.canvas.shapes = [shape for shape in shapes if shape.shape_type != 'point' and shape.shape_type != 'line']
@@ -2394,7 +2398,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.update()
 
     def propagate(self):
-        def numpy_iou(y_true, y_pred, n_class=2):
+        """Propagate the segmentation to the neighboring slices.
+        """
+        def numpy_iou(y_true: NDArray[np.uint8], y_pred: NDArray[np.uint8]):
+            """Calculate the IOU of two masks
+            """
             intersection = np.logical_and(y_true, y_pred)
             union = np.logical_or(y_true, y_pred)
             iou_score = np.sum(intersection) / np.sum(union)
@@ -2431,12 +2439,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                         del self.results_nodule[num][self.results_nodule[num].index(nodule)]
             self.gid.clear()
 
-        def oneway_propagate(num_slice, toward, slice_range):
+        def oneway_propagate(num_slice: int, toward: int, slice_range: List[int]):
             origin_mask = self.predmask.copy()
             self.toggle_segment_mode(True)
             seq_points = self.prev_points
             while num_slice in slice_range:
-                if self.interactiveModel is not None and len(seq_points)> 0:
+                if self.interactiveModel is not None and len(seq_points) > 0:
                     try:
                         # first_click = seq_points[0,:2]
                         pred = predict(self.interactiveModel,
@@ -2495,9 +2503,13 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 self.progress_bar.setValue(self.progress_bar.value()+1)
         from libraries.interactiveSegment import predict
 
-        slice_range = range(1,len(self.image_data_dict))
-        upper_num = oneway_propagate(self.current_slice-1,-1, slice_range)
-        lower_num = oneway_propagate(self.current_slice+1, 1, slice_range)
+
+        slice_range = range(1, len(self.image_data_dict))
+        # Propagate to the upper slices
+        upper_num = oneway_propagate(self.current_slice - 1, -1, slice_range)
+        # Propagate to the lower slices
+        lower_num = oneway_propagate(self.current_slice + 1, 1, slice_range)
+        
         remove_old_rect()
         self.progress_bar.setValue(100)
         self.update_analysis_table()
