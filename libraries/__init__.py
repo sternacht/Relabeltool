@@ -1,6 +1,5 @@
 from .ustr import ustr
 from .loadingDialog import loadingDialog, ProgressDialog
-from .selectDialog import selectDialog
 from .log_dialog import FileSystemView, help_dialog, change_size
 
 from .image import load_images, gene_merge, loadMHD, load_Dicom

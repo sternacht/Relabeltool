@@ -7,20 +7,33 @@ from scipy.ndimage.morphology import distance_transform_edt
 import matplotlib.pyplot as plt
 from openvino.inference_engine import IECore
 
+from numpy.typing import NDArray
+from typing import List, Tuple
 ########################################[ Encapsulation ]########################################
 
-def get_points_mask(size, points):
-    mask=np.zeros(size[::-1]).astype(np.uint8)
-    if len(points)!=0:
-        points=np.array(points)
-        mask[points[:,1], points[:,0]]=1
+def get_points_mask(size: Tuple[int], points: NDArray[np.float64]) -> NDArray[np.uint8]:
+    """Generate a mask from points.
+    
+    Given a list of points, generate a mask with 1s at the points' locations.
+    Args:
+        size: Tuple[int]
+            the size of the mask.
+        points: NDArray[np.float64]
+            the points to be used to generate the mask.
+    Returns: NDArray[np.uint8]
+        the generated mask.
+    """
+    mask = np.zeros(size[::-1]).astype(np.uint8)
+    if len(points) != 0:
+        points = np.array(points)
+        mask[points[:,1], points[:,0]] = 1
     return mask
 
 def structural_integrity_strategy(pred, pos_mask):
     pos_mask=((pos_mask==1)&(pred==1)).astype(np.uint8)
-    h,w=pred.shape
-    mask=np.zeros([h+2, w+2], np.uint8)
-    pred_new=pred.copy()
+    h, w = pred.shape
+    mask = np.zeros([h+2, w+2], np.uint8)
+    pred_new = pred.copy()
     pts_y, pts_x = np.where(pos_mask==1)
     pts_xy=np.concatenate((pts_x[:,np.newaxis], pts_y[:,np.newaxis]), axis=1)
     for pt in pts_xy:
@@ -123,33 +136,33 @@ def init_model(xml_path= XML_PATH, bin_path= BIN_PATH):
     print("Loading {}".format(filename))
     return model, net_output
 
-def predict(model,img, seq_points, output_keys, if_sis=False, if_cuda=True):
-    h,w,_ =img.shape
-    sample={}
-    sample['img']=img.copy()
-    sample['gt']=(np.ones((h,w))*255).astype(np.uint8)
-    sample['pos_points_mask'] = get_points_mask((w,h),seq_points[seq_points[:,2]==1,:2])
-    sample['neg_points_mask'] = get_points_mask((w,h),seq_points[seq_points[:,2]==0,:2])
-    sample['first_point_mask'] = get_points_mask((w,h),seq_points[0:1,:2])
-    Resize((int(w*512/min(h, w)),int(h*512/min(h, w))))(sample)
+def predict(model, img, seq_points, output_keys, if_sis=False, if_cuda=True):
+    h, w, _ = img.shape
+    sample = dict()
+    sample['img'] = img.copy()
+    sample['gt'] = (np.ones((h,w))*255).astype(np.uint8)
+    sample['pos_points_mask'] = get_points_mask((w,h), seq_points[seq_points[:,2]==1, :2])
+    sample['neg_points_mask'] = get_points_mask((w,h), seq_points[seq_points[:,2]==0, :2])
+    sample['first_point_mask'] = get_points_mask((w,h), seq_points[0:1,:2])
+    Resize((int(w * 512 / min(h, w)), int(h * 512 / min(h, w))))(sample)
     CatPointMask(mode='DISTANCE_POINT_MASK_SRC', if_repair=False)(sample)
     sample['pos_mask_dist_first'] = np.minimum(distance_transform_edt(1-sample['first_point_mask']), 255.0)*255.0
     ToTensor()(sample)
     # input=[sample['img'].unsqueeze(0),  sample['pos_mask_dist_src'].unsqueeze(0), sample['neg_mask_dist_src'].unsqueeze(0), sample['pos_mask_dist_first'].unsqueeze(0)]
-    preds = model.infer({'input': np.expand_dims(sample['img'],0),
-                        'mask_dist_src.1': np.expand_dims(sample['pos_mask_dist_src'],0),
-                        'mask_dist_src.3': np.expand_dims(sample['neg_mask_dist_src'],0),
-                        'mask_dist_src': np.expand_dims(sample['pos_mask_dist_first'],0)
+    preds = model.infer({'input': np.expand_dims(sample['img'], 0),
+                        'mask_dist_src.1': np.expand_dims(sample['pos_mask_dist_src'], 0),
+                        'mask_dist_src.3': np.expand_dims(sample['neg_mask_dist_src'], 0),
+                        'mask_dist_src': np.expand_dims(sample['pos_mask_dist_first'], 0)
                         })
     pred = preds[output_keys[-1]]
     result = sigmoid(pred[0,0,:,:])
     # result = torch.sigmoid(output.data.cpu()).numpy()[0,0,:,:]
     result = cv2.resize(result, (w,h), interpolation=cv2.INTER_LINEAR)     
-    pred = (result>0.55).astype(np.uint8)
+    pred = (result > 0.55).astype(np.uint8)
     if if_sis: 
         # old_pred = pred.copy()
         # print("old Pred shape:", old_pred.shape)
-        pred=structural_integrity_strategy(pred,get_points_mask((w,h),seq_points[seq_points[:,2]==1,:2]))
+        pred = structural_integrity_strategy(pred, get_points_mask((w,h), seq_points[seq_points[:,2]==1,:2]))
         # print("Pred shape:", pred.shape)
         # merge = cv2.vconcat([old_pred, pred])
         # plt.imsave("SIS.png", merge)
