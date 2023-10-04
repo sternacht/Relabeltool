@@ -401,6 +401,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         
 
         self.display = Display()
+        self.display.wheel_down.connect(self.open_next_image)
+        self.display.wheel_up.connect(self.open_prev_image)
         self.display.canvas.newShape.connect(self.new_shape)
         self.display.canvas.selectionChanged.connect(self.shape_selection_changed)
         self.display.canvas.shapeMoved.connect(self.set_dirty)
@@ -471,22 +473,18 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def retranslate_ui(self):
         _translate = QCoreApplication.translate
         self.setWindowTitle(_translate("MainWindow", __appname__))
-        # self.load_button.setText(_translate("MainWindow", "LOAD..."))
-        # self.inference_button.setText(_translate("MainWindow", "Inference."))
         self.TotalImage.setText(_translate("MainWindow", "/Total Images"))
         self.group_box_lung_nodule.setTitle(_translate("MainWindow", "Total Lung Nodules"))
 
     def resizeEvent(self, event) -> None:
         
         # self.edit_slice.setFixedWidth(int(self.group_box_lung_nodule.width()*0.25))
-        # self.table_analysis.setMinimumHeight(int(self.height()*0.15))
         self.group_box_lung_nodule.setFixedWidth(int(self.width()*0.48))
         self.table_analysis.setMinimumHeight(int(self.height()*0.15))
         self.tableFile.setFixedHeight(int(self.height()*0.20))
         self.zoomDisplay.setMaximumWidth(int(self.zoomDisplay.height()*1.8))
         # self.listFileWidget.setFixedWidth(int(self.group_box_select.width()*0.48))
         win_width = self.width()
-        # print(win_width)
         self.group_box_infor.setFixedWidth(int(win_width*0.25))
         if win_width > 1500 and win_width <=1920:
             self.label_list.setFixedWidth(int(self.group_box_lung_nodule.width()*0.20))

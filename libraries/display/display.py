@@ -7,13 +7,20 @@ from .zoomWidget import ZoomWidget
 
 class Display(QtWidgets.QWidget):
     edit_shape = QtCore.pyqtSignal(list)
+    wheel_up = QtCore.pyqtSignal()
+    wheel_down = QtCore.pyqtSignal()
     
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = list(range(3))
     def __init__(self, *args, **kwargs):
         super(Display, self).__init__(*args, **kwargs)
         self.__parameters()
-        self.__initUI()
-
+        self.__initUI()           
+    
+    def open_next(self):
+        self.wheel_down.emit()
+    def open_prev(self):
+        self.wheel_up.emit()
+    
     def __parameters(self):
         self.image = QtGui.QImage()
         self.zoom_mode = self.FIT_WINDOW
@@ -35,7 +42,8 @@ class Display(QtWidgets.QWidget):
         self.canvas = Canvas(epsilon= 10.0, 
                             double_click= "close",
                             num_backups = 10)
-        
+        self.canvas.wheel_up.connect(self.open_prev)
+        self.canvas.wheel_down.connect(self.open_next)
         self.canvas.zoomRequest.connect(self.zoom_request)
         # self.canvas.newShape.connect(self.new_shape)
         self.canvas.shapeMoved.connect(self._set_dirty)

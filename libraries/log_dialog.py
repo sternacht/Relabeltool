@@ -47,7 +47,6 @@ class change_size(QDialog):
     def point_size_update(self):
         text = self.box.currentText()
         self.parent.point_size = int(text)
-        self.parent.gotoClicked()
         
     def setup_UI(self):
         layout = QVBoxLayout(self)

@@ -42,7 +42,9 @@ class Canvas(QtWidgets.QWidget):
     shapeMoved = QtCore.pyqtSignal()
     drawingPolygon = QtCore.pyqtSignal(bool)
     # vertexSelected = QtCore.pyqtSignal(bool)
-
+    
+    wheel_up = QtCore.pyqtSignal()
+    wheel_down = QtCore.pyqtSignal()
     pointSegment = QtCore.pyqtSignal()
 
     currentPostion = QtCore.pyqtSignal(int, int)
@@ -854,20 +856,29 @@ class Canvas(QtWidgets.QWidget):
             return self.scale * self.pixmap.size()
         return super(Canvas, self).minimumSizeHint()
 
-    def wheelEvent(self, ev):
-        mods = ev.modifiers()
-        delta = ev.angleDelta()
-        if not self.viewing():
-            if QtCore.Qt.ControlModifier == int(mods):
-                # with Ctrl/Command key
-                # zoom
-                self.zoomRequest.emit(delta.y(), ev.pos())
-            else:
-                # scroll
-                self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
-                self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
-        ev.accept()
+    # def wheelEvent(self, ev):
+    #     mods = ev.modifiers()
+    #     delta = ev.angleDelta()
+    #     if not self.viewing():
+    #         if QtCore.Qt.ControlModifier == int(mods):
+    #             # with Ctrl/Command key
+    #             # zoom
+    #             self.zoomRequest.emit(delta.y(), ev.pos())
+    #         else:
+    #             # scroll
+    #             self.scrollRequest.emit(delta.x(), QtCore.Qt.Horizontal)
+    #             self.scrollRequest.emit(delta.y(), QtCore.Qt.Vertical)
+    #     ev.accept()
 
+    
+    def wheelEvent(self, ev):
+        delta = ev.angleDelta().y()
+        if delta > 0:
+            self.wheel_up.emit()
+        else:
+            self.wheel_down.emit()
+        ev.accept()
+            
     def moveByKeyboard(self, offset):
         if self.selectedShapes:
             self.boundedMoveShapes(
