@@ -125,7 +125,15 @@ class TableWidget_List(QTableWidget):
             self.sortBy = logicalIndex
             self.sortReverse = False
         self.sortByColumn(self.sortBy, Qt.SortOrder.DescendingOrder if self.sortReverse else Qt.SortOrder.AscendingOrder)
-            
+        
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        current_value = self.verticalScrollBar().value()
+        if delta > 0:
+            self.verticalScrollBar().setValue(current_value - 1)
+        else:
+            self.verticalScrollBar().setValue(current_value + 1)
+        event.accept()
 
 class PatientInforTable(QTableWidget):
     def __init__(self, vheader = None):
@@ -158,6 +166,15 @@ class PatientInforTable(QTableWidget):
             self.resizeRowsToContents()
             self.resizeColumnsToContents()
             self.setWordWrap(True)
+        
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        current_value = self.verticalScrollBar().value()
+        if delta > 0:
+            self.verticalScrollBar().setValue(current_value - 1)
+        else:
+            self.verticalScrollBar().setValue(current_value + 1)
+        event.accept()
 
 class NoduleComboBox(QComboBox):
     comboListDefault = ['Benign', 'Probably Benign','Probably Suspicious','Suspicious']
@@ -438,3 +455,12 @@ class AnalysisTable(QTableWidget):
         item['Category'] = category
         noduleIndex = combo.comboListDefault.index(category)
         self.color_signal.emit(row, item, noduleIndex)
+        
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        current_value = self.verticalScrollBar().value()
+        if delta > 0:
+            self.verticalScrollBar().setValue(current_value - 1)
+        else:
+            self.verticalScrollBar().setValue(current_value + 1)
+        event.accept()
