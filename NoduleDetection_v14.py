@@ -2007,8 +2007,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.group_box_lung_nodule.setTitle("Total Lung Nodules:{:5d}".format(self.table_analysis.rowCount()))
             if self.current_slice is not None:    
                 self.load_file(self.image_data_dict[self.current_slice]['data'], 
-                                self.image_data_dict[self.current_slice]['path'],
-                                self.image_data_dict[self.current_slice]['mode'])
+                               self.image_data_dict[self.current_slice]['path'],
+                               self.image_data_dict[self.current_slice]['mode'])
         pass
 
     def delete_item_analysis_table(self, id_no:int, list_remove:list, list_analysis:list):
