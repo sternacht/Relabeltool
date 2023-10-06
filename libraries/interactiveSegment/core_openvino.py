@@ -7,11 +7,10 @@ from scipy.ndimage.morphology import distance_transform_edt
 import matplotlib.pyplot as plt
 from openvino.inference_engine import IECore
 
-from numpy.typing import NDArray
 from typing import List, Tuple
 ########################################[ Encapsulation ]########################################
 
-def get_points_mask(size: Tuple[int], points: NDArray[np.float64]) -> NDArray[np.uint8]:
+def get_points_mask(size: Tuple[int], points: np.ndarray) -> np.ndarray:
     """Generate a mask from points.
     
     Given a list of points, generate a mask with 1s at the points' locations.
