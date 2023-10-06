@@ -6,7 +6,6 @@ import argparse
 from pprint import PrettyPrinter
 from collections import defaultdict
 from typing import List, Dict, Tuple, Union, Optional, Any
-from numpy.typing import NDArray, ArrayLike
 # from grabcut_dialog import grabcut_dialog
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 try: 
@@ -2400,7 +2399,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def propagate(self):
         """Propagate the segmentation to the neighboring slices.
         """
-        def numpy_iou(y_true: NDArray[np.uint8], y_pred: NDArray[np.uint8]):
+        def numpy_iou(y_true: np.ndarray, y_pred: np.ndarray):
             """Calculate the IOU of two masks
             """
             intersection = np.logical_and(y_true, y_pred)
