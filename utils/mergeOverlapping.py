@@ -2,7 +2,7 @@ from collections import OrderedDict
 import numpy as np
 import os
 import glob
-
+from typing import List, Tuple, Dict, Any
 
 def readtxt(path:str):
     """
@@ -204,7 +204,7 @@ class NoduleTracker():
         del self.__disappeared[objectID]
         pass
 
-    def update(self, rects, num_slice):
+    def update(self, rects: List[Any], num_slice):
         if len(rects) == 0:
             for objectID in list(self.__disappeared.keys()):
                 self.__disappeared[objectID] += 1
@@ -251,7 +251,29 @@ class NoduleTracker():
                     self.register(rects[col], num_slice)
 
         return self.objects, self.slices
-def colect3d(mergedDict:dict):
+def colect3d(mergedDict: Dict[str, Dict[int, List[Dict[str, Any]]]]):
+    """
+    Args:
+        mergedDict: Dictionary with format
+        {
+            "PatientID": {
+                "num_slice": [list Bounding box]
+            }
+        }
+        Each Bounding box is a dictionary with format
+        {
+            'label': 'nodule',
+            'points': [(x1,y1), (x2, y2)],
+            'conf': conf,
+            'checked': True,
+            'category': category_id,
+            'shape_type': 'rectangle',
+            'group_id': noduleId,
+            'rect': [x1,y1,x2,y2],
+            'description': None
+        }
+    """
+    
     patient_tracking = {}
     for patient, slices_m in mergedDict.items():
         nt = NoduleTracker(maxDisappeared=1)
@@ -262,7 +284,7 @@ def colect3d(mergedDict:dict):
                 if bb is None:
                     continue
                 if isinstance(bb, dict):
-                    m_bboxes.append([*bb['rect'], 0, bb['conf'], bb])
+                    m_bboxes.append([*bb['rect'], 0, bb['conf'], bb]) # x1, y1, x2, y2, cls, conf, <whole dict>
                 else:
                     m_bboxes.append(bb[:6])
             objects, slices = nt.update(m_bboxes, slice)
