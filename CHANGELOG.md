@@ -14,13 +14,16 @@ Acknowledged an issue where drawing a rectangle in hidden mode may result in the
     ```
 - Added a "Confirmed Status" feature.
     - Users can now view the current number of confirmations made by each user.
-    - This information can be accessed by selecting the "Open Confirmed Status Window" option in the "Help" menu located at the top.
+    - This information can be accessed by selecting the "Confirmed Status" option in the "Help" menu located at the top.
     - Users can now easily identify which user made a confirmation directly within the table located in the top left corner.
 
 - Implemented scroll wheel functionality on the canvas.
-    - Users can now conveniently switch between different canvases by using the mouse scroll wheel to navigate upwards or downwards.
+    - Users can now conveniently switch between different slice by using the mouse scroll wheel to navigate upwards or downwards.
 - Added a "Save" button in the right section.
     - The "Save" button allows users to save their editing history, providing the same functionality as pressing "Ctrl+S."
+- Added automatic refresh feature
+    - The table is automatically refreshed every 60 seconds by default. You can modify this by using help>Change Auto Refresh Frequency.
+    - Added display of last refresh time in the top left area.
 ### Changed
 - User Experience Improvement
     - Change the default mode of add new nodule button from "rectangle" to "polygon"

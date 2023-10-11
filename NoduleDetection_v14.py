@@ -3,6 +3,7 @@ import os
 import time
 import cv2
 import argparse
+import datetime
 from pprint import PrettyPrinter
 from collections import defaultdict
 from typing import List, Dict, Tuple, Union, Optional, Any
@@ -34,6 +35,7 @@ def read(filename, default=None):
             return f.read()
     except:
         return default
+    
 class WindowUI_Mixin(object):
     """
     Set up UI for BME application
@@ -177,7 +179,6 @@ class WindowUI_Mixin(object):
         return layout
 
 class MainWindow(QMainWindow, WindowUI_Mixin):
-
     def __init__(self, 
                  user_name: str,
                  parent = None, 
@@ -191,12 +192,20 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.actionConnect()
         self.build_ui()
         self.setStatusBar_custom()
-
         self.user_name = user_name
-        
+
+        self._init_auto_refresh()
+
     def _init_paramters(self):
         self.history = [] # keep the information of each series
         self.loaded_path = []
+    
+    def _init_auto_refresh(self):
+        self.last_refresh_time = time.time()
+        self.auto_refresh_freqency = 60 # seconds
+        self.auto_refresh_timer = QTimer(self)
+        self.auto_refresh_timer.timeout.connect(self.refresh)
+        self.auto_refresh_timer.start(self.auto_refresh_freqency * 1000) # 1 minutes
     
     def startParam(self):
         "Initial or restart all parameter "
@@ -546,7 +555,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         open_mhd = action("Open MetaImage (.mhd)", self.openFileMetaImage, None, None, None, enabled= True)
         open_dicom = action("Open Dicom File", self.openDicomDialog, None, None, None, enabled= True)
         change_point_size = action("Change Point Size", lambda: change_size(self).exec_(), None, 'change size', 'change size')
-
+        change_auto_refresh_freq = action("Change Auto Refresh Frequency", self.change_auto_refresh_frequency, None, 'change auto refresh', 'change auto refresh')
+        
         zoom = QWidgetAction(self)
         zoom.setDefaultWidget(self.display.zoomWidget)
         self.display.zoomWidget.setWhatsThis(u"Zoom in/out of the image.  Also accessible with " "%s and %s from the canvas." % (format_shortcut("Ctrl+[-+]"), format_shortcut("Ctrl+Wheel")))
@@ -592,6 +602,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     help=show_shortcut,
                     status=show_confirm_status,
                     change_point_size = change_point_size,
+                    change_auto_refresh_freq = change_auto_refresh_freq,
                     openImage = open_image_folder, openMhd = open_mhd, openDicom = open_dicom)
         
         self.menus = struct(
@@ -636,7 +647,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             fit_window, fit_width,
             change_point_size
         ))
-        add_actions(self.menus.help, (show_shortcut, show_confirm_status, None))
+        add_actions(self.menus.help, (show_shortcut, show_confirm_status, change_auto_refresh_freq, None))
         pass
 
     def actionConnect(self):
@@ -735,6 +746,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.tableFile._addData(self.history)
         confirmed_counts = len(list(filter(lambda x:x["Confirmed"] != None, self.history)))
         self.tableFile.update_confirm_counts_header(confirmed_counts)
+        # Update Last Modified
+        self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(datetime.datetime.now().strftime("%Y/%d/%m %H:%M:%S")))
+        # Recover the last sort
+        sort_column = getattr(self.tableFile, "sortBy", 0)
+        sort_reverse = getattr(self.tableFile, "sort_reverse", False)
+        self.tableFile.sortByColumn(sort_column, Qt.SortOrder.DescendingOrder if sort_reverse else Qt.SortOrder.AscendingOrder)
 
     def load_recent(self, path):
         if self.may_continue():
@@ -1209,9 +1226,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         box.currentIndexChanged.connect(point_size_update)
 
         Form.show()
-        
-
-    
     def add_label(self, shape:Shape):
         shape.paint_label = self.display_label_option.isChecked()
         if shape.shape_type == 'point' or shape.shape_type == 'line':
@@ -2515,7 +2529,13 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.update_analysis_table()
         self.inforMessage("Propagate", "Propagate Finished")
         self.toggle_segment_mode(False)
-        
+      
+    def change_auto_refresh_frequency(self):
+        new_freq, ok = QInputDialog.getInt(self, 'Change Auto Refresh Frequency', 'Please input a number(seconds):', self.auto_refresh_freqency, 30, step=1)
+        if ok:
+            self.auto_refresh_freqency = new_freq
+            self.auto_refresh_timer.setInterval(self.auto_refresh_freqency * 1000) # ms
+      
 def get_args():
     parser = argparse.ArgumentParser(description='Lung Nodule Detection')
     parser.add_argument('--user_name', type=str, default='default', help='user_name name')
