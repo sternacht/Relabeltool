@@ -36,7 +36,7 @@ class TableWidget_List(QTableWidget):
         self.setSizeAdjustPolicy(QAbstractScrollArea.AdjustToContents)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.horizontalHeader().setSelectionMode(QAbstractItemView.NoSelection)
-        self.horizontalHeader().sectionClicked.connect(self.sortByHeader)
+        self.horizontalHeader().sectionClicked.connect(self.sort_by_header)
         self.horizontalHeader().setFont(QFont("Times New Roman", 15))
         self.list_data = []
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -45,7 +45,7 @@ class TableWidget_List(QTableWidget):
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setStyleSheet(self.style_sheet)
         self.sortBy = 0
-        self.sortReverse = False
+        self.sort_reverse = False
 
     def _addData(self, data:list):
         """
@@ -116,13 +116,13 @@ class TableWidget_List(QTableWidget):
         self._removeRow_index(index)
         self.update()
     
-    def sortByHeader(self, logicalIndex):
-        if self.sortBy == logicalIndex:
-            self.sortReverse = not self.sortReverse
+    def sort_by_header(self, header_index: int):
+        if self.sortBy == header_index:
+            self.sort_reverse = not self.sort_reverse
         else:
-            self.sortBy = logicalIndex
-            self.sortReverse = False
-        self.sortByColumn(self.sortBy, Qt.SortOrder.DescendingOrder if self.sortReverse else Qt.SortOrder.AscendingOrder)
+            self.sortBy = header_index
+            self.sort_reverse = False
+        self.sortByColumn(self.sortBy, Qt.SortOrder.DescendingOrder if self.sort_reverse else Qt.SortOrder.AscendingOrder)
         
     def wheelEvent(self, event):
         delta = event.angleDelta().y()
