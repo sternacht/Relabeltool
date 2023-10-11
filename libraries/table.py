@@ -133,6 +133,22 @@ class TableWidget_List(QTableWidget):
             self.verticalScrollBar().setValue(current_value + 1)
         event.accept()
 
+    def update_confirm_counts_header(self, number: int):
+        """Update the number of confirmed patients in the header, e.g. Confirmed (10)
+        """
+        self.title[2] = "Confirmed ({})".format(number)
+        self.setHorizontalHeaderLabels(self.title)
+        self.update()
+
+    def update_one_row_confirm_status(self, patient_path: str, confirmed_user: str):
+        path_column = self.header.index('Path')
+        for row in range(self.rowCount()):
+            if self.item(row, path_column).text() == patient_path:
+                self.item(row, self.header.index('Confirmed')).setText('V')
+                self.item(row, self.header.index('Confirmed_User')).setText(confirmed_user)
+                break
+        self.update()
+
 class PatientInforTable(QTableWidget):
     def __init__(self, vheader = None):
         if vheader is None:
