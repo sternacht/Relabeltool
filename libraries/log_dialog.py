@@ -68,19 +68,18 @@ class change_size(QDialog):
         super(change_size, self).__init__(parent=parent)
         self.parent = parent
         self.setWindowTitle("change size")
+        self.selection = {'小':4,'中':6,'大':8,'特大':12}
         self.setup_UI()
         self.setFont(QFont("Times New Roman", 15))
 
     def point_size_update(self):
-        text = self.box.currentText()
-        self.parent.point_size = int(text)
+        self.parent.point_size = self.selection[self.box.currentText()]
         
     def setup_UI(self):
         layout = QVBoxLayout(self)
-        selection = ['4','6','8','12']
         self.box = QComboBox(self)   # 加入下拉選單
-        self.box.addItems(selection)   # 加入四個選項
-        self.box.setCurrentIndex(selection.index(str(self.parent.point_size)))
+        self.box.addItems(list(self.selection.keys()))   # 加入四個選項
+        self.box.setCurrentIndex(list(self.selection.values()).index(self.parent.point_size))
         self.box.setGeometry(10,10,200,300)
         self.box.currentIndexChanged.connect(self.point_size_update)
         layout.addWidget(self.box)

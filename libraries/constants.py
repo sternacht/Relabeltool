@@ -1,7 +1,7 @@
 from PyQt5.QtGui import QColor
 
-PATH_DICOM = "/mnt/data/dicom"
-DICOM_DB = "/mnt/data/dicom.db"
+PATH_DICOM = "C:\\Users\\nckubot65904\\Documents\\openfl_system_demo\\dicom"
+DICOM_DB = "C:\\Users\\nckubot65904\\Documents\\openfl_system_demo\\dicom.db"
 # PATH_LOG = r"../Database_test/Log"
 
 
