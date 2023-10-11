@@ -773,7 +773,7 @@ class Canvas(QtWidgets.QWidget):
         assert self.current
         self.current.close()
         shape_type = self.current.shape_type
-        self.shapes.append(self.current)       
+        self.shapes.append(self.current)
         self.storeShapes()
         self.current = None
         self.setHiding(False)
@@ -996,6 +996,9 @@ class Canvas(QtWidgets.QWidget):
     def setAllShapeVisible(self, value):
         for shape in self.shapes:
             self.visible[shape] = value
+        self.update()
+
+    def canvasUpdate(self):
         self.update()
 
     def overrideCursor(self, cursor):

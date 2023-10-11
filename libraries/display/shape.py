@@ -299,7 +299,9 @@ class Shape(object):
                         self.label = ""
                     if min_y < min_y_label:
                         min_y += min_y_label
-                    string = self.label + ":{:3d}".format(self.group_id)
+                    string = f'{self.label}'
+                    if self.group_id:
+                        string += f':{self.group_id:3d}'
                     # painter.drawText(min_x, min_y, self.label)
                     painter.drawText(min_x, min_y, string)
             if self.fill:

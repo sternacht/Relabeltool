@@ -510,9 +510,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         open = action('Open File', self.openDicomDialog,
                       'Ctrl+O', 'open', 'open File Detail')
-        open_next_image = action("Next Img", self.open_next_image, 'd', 'next', 'Next Image Detail', enabled = False)
+        open_next_image = action("Next Img", self.open_next_image, 'd', 'next', 'Next Image Detail', enabled = True)
 
-        open_prev_image = action("Prev Img", self.open_prev_image, 'a', 'prev', 'Previous Image Detail', enabled = False)
+        open_prev_image = action("Prev Img", self.open_prev_image, 'a', 'prev', 'Previous Image Detail', enabled = True)
 
         close = action('Close File', self.close_file, 'Ctrl+W', 'close', 'closeCurDetail')
 
@@ -618,6 +618,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.display_label_option.setShortcut("Ctrl+Shift+P")
         self.display_label_option.setCheckable(True)
         self.display_label_option.setChecked(False)
+        self.display_label_option.triggered.connect(self.set_display_label)
         # self.display_label_option.triggered.connect(self.toggle_paint_labels_option)
         # self.change_point_size = QAction('Select Point Size', self)
         # self.change_point_size.setEnabled(True)
@@ -1088,6 +1089,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.dirty = True
         self.update_analysis_table()
 
+    def set_display_label(self):
+        for shape in self.zoomDisplay.canvas.shapes:
+            shape.paint_label = self.display_label_option.isChecked()
+        self.zoomDisplay.canvas.update()
+
     def set_view_mode(self):
         self.toggle_view_mode(True)   
 
@@ -1303,7 +1309,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         return shape
 
     def load_labels(self, shapes:list):
-        
         def distance_p(p, q):
             px = p[0] - q[0]
             py = p[1] - q[1]
@@ -1453,6 +1458,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         """Pop-up and give focus to the label editor.
         position MUST be in global coordinates.
         """
+        print('newshape')
         flags = None
         group_id = None
         text = "nodule"
@@ -1712,7 +1718,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def zoom_create(self, shapes):
         self.display.update_shape(shapes)
-        self.new_shape()
+        self.set_dirty()
+        # self.new_shape()
 
     def set_cursor(self, cursor_x, cursor_y):
         text = "[{}, {}]".format(cursor_x, cursor_y)
@@ -1995,6 +2002,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def update_analysis_table(self):
         if self.auto_saving.isChecked() and self.dirty:
             self.save_label(self.current_slice, self.display.shapes())
+            
         self.toggle_view_mode()
         if self.results_nodule is None or len(self.results_nodule) <= 0:
             return
