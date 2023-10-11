@@ -1,21 +1,42 @@
 # Change Log
 ---
+## [Known Bug]
+- Bug in Hidden Mode
+Acknowledged an issue where drawing a rectangle in hidden mode may result in the frame not updating as expected. Further investigation and work are in progress to address this concern.
 ## [Unreleased]
 ### Added
-- Added user options to determine which user made the final confirmation.
+- Added User Option:
+    - Implemented a user selection feature.
+    - Users can now specify their identity by adding "--user" during program execution.
+    - This feature assists in identifying the individual responsible for the final confirmation or decision-making process.
     ```shell
     python NoduleDetection_v14.py --user_name <user_name>
     ```
-- Add confirmed status
-    - Add confirmed user in the database
-    - Add confirmed status dialog in help menu
-    - Show confirmed user on table
+- Added a "Confirmed Status" feature.
+    - Users can now view the current number of confirmations made by each user.
+    - This information can be accessed by selecting the "Open Confirmed Status Window" option in the "Help" menu located at the top.
+    - Users can now easily identify which user made a confirmation directly within the table located in the top left corner.
+
+- Implemented scroll wheel functionality on the canvas.
+    - Users can now conveniently switch between different canvases by using the mouse scroll wheel to navigate upwards or downwards.
+- Added a "Save" button in the right section.
+    - The "Save" button allows users to save their editing history, providing the same functionality as pressing "Ctrl+S."
+### Changed
+- User Experience Improvement
+    - Change the default mode of add new nodule button from "rectangle" to "polygon"
+
+### Fixed
+- Display Optimization:
+    - Improved the functionality to view changes instantly for display labels and change point size without requiring a refresh by toggling.
+- Display Label Bug Fix:
+    - Fixed a bug in the display label section.
+    - The bug was caused by missing the "group id" attribute for new labels, which has been addressed and resolved.
 ### Removed
-- Removed useless code
+- Code Cleanup
+    Eliminated unnecessary code files:
     1. /libraries/selectDialog.py
     2. /libraries/text.py
     3. /libraries/vtk.py
-
 ## [2.0.8] - 2023-10-04
 - First release
 ```
