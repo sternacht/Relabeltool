@@ -197,7 +197,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self._init_auto_refresh()
 
     def _init_paramters(self):
-        self.history = [] # keep the information of each series
+        self.history = [] # A list of patients' information, e.g.: [{'PatientID': '000569', 'Gender':'F'}, {'PatientID': '001569', 'Gender':'M'}]
         self.loaded_path = []
     
     def _init_auto_refresh(self):
@@ -1443,11 +1443,15 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 db_api.update_is_relabel(series_id, True)
                 db_api.update_relabel_user(series_id, self.user_name)
                 
+            # Update the confirmed status of current patient
+            self.tableFile.update_one_row_confirm_status(self.dirname, self.user_name)
+            for i in range(len(self.history)):
+                if self.history[i]["Path"] == self.dirname:
+                    self.history[i]["Confirmed"] = 'V'
+                    break
             # Update the confirmed counts
             confirmed_counts = len(list(filter(lambda x: x["Confirmed"] == 'V', self.history)))
             self.tableFile.update_confirm_counts_header(confirmed_counts)
-            # Update the confirmed status of current patient
-            self.tableFile.update_one_row_confirm_status(self.dirname, self.user_name)
             
         else:
             self.errorMessage("Resample mask failed")
