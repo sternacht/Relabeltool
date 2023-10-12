@@ -1150,7 +1150,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             # self.label_list.scrollToItem(item)
         self._noSelectionSlot = False
         n_selected = len(selected_shapes)
-        print(n_selected)
+        # print(n_selected)
         self.actions.delete.setEnabled(n_selected)
         if self.dirty:
             self.actions.update.setEnabled(True)
@@ -1309,11 +1309,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         return shape
 
     def load_labels(self, shapes:list):
-        def distance_p(p, q):
-            px = p[0] - q[0]
-            py = p[1] - q[1]
-            return sqrt(px * px + py * py)
-        # print('in load label')
         self.s = []
         ds = []
         # label, points, line_color, fill_color, conf, checked, category, noduleID
@@ -1376,8 +1371,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 self.results_nodule[current_slice] = shapes                 # use assignment.
         else:
             pass
-            # if self.results_nodule is not None and current_slice in self.results_nodule.keys():
-            #     del self.results_nodule[current_slice]
 
     def save_all_labels(self):
         def saved_notify():
@@ -1387,7 +1380,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         if self.auto_saving.isChecked():
             if self.dirty is True:
                 self.save_label(self.current_slice, self.display.shapes())   
-        # if self.results_nodule is not None and len(self.results_nodule) > 0:
         if self.results_nodule is None or len(self.results_nodule) <= 0:
             self.results_nodule = {}
         if self.label_file is None:
@@ -1458,7 +1450,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         """Pop-up and give focus to the label editor.
         position MUST be in global coordinates.
         """
-        print('newshape')
         flags = None
         group_id = None
         text = "nodule"
@@ -1719,7 +1710,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def zoom_create(self, shapes):
         self.display.update_shape(shapes)
         self.set_dirty()
-        # self.new_shape()
 
     def set_cursor(self, cursor_x, cursor_y):
         text = "[{}, {}]".format(cursor_x, cursor_y)
@@ -2416,11 +2406,16 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             return iou_score
 
         def overlap(pred_mask, cur_slice_nodule):
+            
+            blank_mask = np.zeros(self.mImgSize + [3]).astype(np.uint8)
             for nodule in cur_slice_nodule:
                 try:
-                    mask = nodule['mask']
+                    mask3d = cv2.fillConvexPoly(blank_mask.copy(),
+                                                    np.array(nodule['points'],dtype=np.int32),
+                                                    (255,255,255))
+                    mask = cv2.cvtColor(mask3d,cv2.COLOR_BGR2GRAY)
                     iou = numpy_iou(pred_mask, mask)
-                    if iou > 0.3:
+                    if iou > 0:
                         return True
                 except:
                     continue
