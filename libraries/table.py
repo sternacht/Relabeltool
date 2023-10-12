@@ -239,7 +239,9 @@ class AnalysisTable(QTableWidget):
     def __init__(self, header = None):
         if header is None:
             self.header = ['Nodule ID','Slice Range',
-                            "Diameter (mm)","Category",
+                            "Diameter (mm)",
+                            "Category",
+                            "Mark Type",
                             "Options"]
         else:
             self.header = header
@@ -330,6 +332,8 @@ class AnalysisTable(QTableWidget):
                         continue
                     elif key == "NoduleID":
                         newitem = QTableWidgetItem("{:02d}".format(data[row][key]))
+                    elif key == 'Mark Type':
+                        newitem = QTableWidgetItem(str(data[row][key]))
                     # elif key in []:
                     #     newitem = QTableWidgetItem(str(data[row][key]))
                     else:
