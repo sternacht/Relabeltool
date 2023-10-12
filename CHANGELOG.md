@@ -27,13 +27,16 @@ Acknowledged an issue where drawing a rectangle in hidden mode may result in the
 ### Changed
 - User Experience Improvement
     - Change the default mode of add new nodule button from "rectangle" to "polygon"
-
+- Segmentation Propagation Enhancement
+    - Modified segmentation propagation behavior.
+    - Now, overlapping annotations with a polygonal shape will merge instead of generating separate nodules, providing a more streamlined and accurate segmentation process.
 ### Fixed
 - Display Optimization:
     - Improved the functionality to view changes instantly for display labels and change point size without requiring a refresh by toggling.
 - Display Label Bug Fix:
     - Fixed a bug in the display label section.
     - The bug was caused by missing the "group id" attribute for new labels, which has been addressed and resolved.
+-
 ### Removed
 - Code Cleanup
     Eliminated unnecessary code files:
