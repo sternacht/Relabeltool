@@ -1354,9 +1354,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 y_center = (s0[1] + s0[3])//2
                 if not self.view_lock:
                     self.zoom_area(x_center, y_center)
-        if not self.hidden_on:
-            self.display.update_shape(ds)
-            self.zoomDisplay.update_shape(ds)
+        self.display.update_shape(ds)
+        self.zoomDisplay.update_shape(ds)
+        # In hidden mode, after load labels, set all shapes invisible.
+        if self.hidden_on:
+            self.display.canvas.setAllShapeVisible(False)
+            self.zoomDisplay.canvas.setAllShapeVisible(False)
 
     def save_label(self, current_slice, display_shapes, save_new=False):
         # current_slice = self.current_slice

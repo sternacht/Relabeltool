@@ -1,8 +1,7 @@
 # Change Log
 ---
 ## [Known Bug]
-- Bug in Hidden Mode
-Acknowledged an issue where drawing a rectangle in hidden mode may result in the frame not updating as expected. Further investigation and work are in progress to address this concern.
+
 ## [Unreleased]
 ### Added
 - Added User Option:
@@ -36,7 +35,7 @@ Acknowledged an issue where drawing a rectangle in hidden mode may result in the
 - Display Label Bug Fix:
     - Fixed a bug in the display label section.
     - The bug was caused by missing the "group id" attribute for new labels, which has been addressed and resolved.
--
+- Fix the unexpected behavior during annotation in hidden mode.
 ### Removed
 - Code Cleanup
     Eliminated unnecessary code files:
