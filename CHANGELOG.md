@@ -1,8 +1,9 @@
 # Change Log
 ---
 ## [Known Bug]
+- In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 
-## [Unreleased]
+## [2.0.9] - 2023-10-13
 ### Added
 - Added User Option:
     - Implemented a user selection feature.
@@ -26,9 +27,6 @@
 ### Changed
 - User Experience Improvement
     - Change the default mode of add new nodule button from "rectangle" to "polygon"
-- Segmentation Propagation Enhancement
-    - Modified segmentation propagation behavior.
-    - Now, overlapping annotations with a polygonal shape will merge instead of generating separate nodules, providing a more streamlined and accurate segmentation process.
 ### Fixed
 - Display Optimization:
     - Improved the functionality to view changes instantly for display labels and change point size without requiring a refresh by toggling.

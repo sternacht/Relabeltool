@@ -2420,17 +2420,20 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             return iou_score
 
         def overlap(pred_mask, cur_slice_nodule):
-            
-            blank_mask = np.zeros(self.mImgSize + [3]).astype(np.uint8)
+            #  blank_mask = np.zeros(self.mImgSize + [3]).astype(np.uint8)
             for nodule in cur_slice_nodule:
                 try:
-                    mask3d = cv2.fillConvexPoly(blank_mask.copy(),
-                                                    np.array(nodule['points'],dtype=np.int32),
-                                                    (255,255,255))
-                    mask = cv2.cvtColor(mask3d,cv2.COLOR_BGR2GRAY)
+                    mask = nodule['mask']
                     iou = numpy_iou(pred_mask, mask)
-                    if iou > 0:
+                    if iou > 0.3:
                         return True
+                    # mask3d = cv2.fillConvexPoly(blank_mask.copy(),
+                    #                                 np.array(nodule['points'],dtype=np.int32),
+                    #                                 (255,255,255))
+                    # mask = cv2.cvtColor(mask3d,cv2.COLOR_BGR2GRAY)
+                    # iou = numpy_iou(pred_mask, mask)
+                    # if iou > 0:
+                    #     return True
                 except:
                     continue
             return False
