@@ -2,6 +2,7 @@
 ---
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
+## [Unreleased]
 
 ## [2.0.9] - 2023-10-13
 ### Added
