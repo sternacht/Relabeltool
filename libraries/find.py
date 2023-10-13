@@ -1,7 +1,6 @@
 import os
 import SimpleITK as sitk
-from glob import glob
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Tuple, Any, Set
 from .database import gen_dicom_path
 
 PATH_DICOM = r"../Database\Dicom"
@@ -55,7 +54,7 @@ def check_dir(dirname):
 def refresh(history: List[Dict[str, Any]], 
             dicom_db,
             path_dicom: str = PATH_DICOM, 
-            loaded_path: List[Dict[str, Any]] = []) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+            loaded_path: Set[str] = []) -> Tuple[List[Dict[str, Any]], Set[str]]:
     """Refresh the table of patients' information
     Args:
         history: List[Dict[str, Any]
@@ -64,8 +63,8 @@ def refresh(history: List[Dict[str, Any]],
             database API
         path_dicom: str
             A path to dicom folder
-        loaded_path: List[Dict[str, Any]
-            A list of loaded path, this is used to avoid loading the same path twice
+        loaded_path: Set[str]
+            A set of loaded path, this is used to avoid loading the same path twice
     Returns: Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]
         A tuple of (history, loaded_path)
     """
@@ -76,7 +75,7 @@ def refresh(history: List[Dict[str, Any]],
         dirname = gen_dicom_path(*folder_info)
         if dirname not in loaded_path:
             patient_info = read_patient_infor(os.path.join(path_dicom, dirname, 'dicom'))
-            loaded_path.append(dirname)
+            loaded_path.add(dirname)
             history.append(patient_info)
         else:
             patient_info = list(filter(lambda x:dirname in x["Path"], history))[0]

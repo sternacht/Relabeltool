@@ -198,7 +198,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def _init_paramters(self):
         self.history = [] # A list of patients' information, e.g.: [{'PatientID': '000569', 'Gender':'F'}, {'PatientID': '001569', 'Gender':'M'}]
-        self.loaded_path = []
+        self.loaded_path = set() # A set of loaded path, this is used to avoid loading the same path twice
     
     def _init_auto_refresh(self):
         self.last_refresh_time = time.time()
@@ -747,7 +747,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         confirmed_counts = len(list(filter(lambda x:x["Confirmed"] != None, self.history)))
         self.tableFile.update_confirm_counts_header(confirmed_counts)
         # Update Last Modified
-        self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(datetime.datetime.now().strftime("%Y/%d/%m %H:%M:%S")))
+        tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
+        self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(datetime.datetime.now(tw_zone).strftime("%Y/%m/%d %H:%M:%S")))
         # Recover the last sort
         sort_column = getattr(self.tableFile, "sortBy", 0)
         sort_reverse = getattr(self.tableFile, "sort_reverse", False)
