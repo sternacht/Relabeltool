@@ -197,8 +197,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self._init_auto_refresh()
 
     def _init_paramters(self):
-        self.history = [] # keep the information of each series
-        self.loaded_path = []
+        self.history = [] # A list of patients' information, e.g.: [{'PatientID': '000569', 'Gender':'F'}, {'PatientID': '001569', 'Gender':'M'}]
+        self.loaded_path = set() # A set of loaded path, this is used to avoid loading the same path twice
+
+        self.last_loaded_dicom_db_time = None
     
     def _init_auto_refresh(self):
         self.last_refresh_time = time.time()
@@ -737,15 +739,24 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.slider.setEnabled(False)
 
     def refresh(self):
-        with database.DicomDatabaseAPI(self.dicom_db_path) as dbapi:
-            self.history, self.loaded_path = refresh(self.history,
-                                                     dbapi, 
-                                                     path_dicom=const.PATH_DICOM, 
-                                                     loaded_path=self.loaded_path)
-        self.tableFile.clear()
-        self.tableFile._addData(self.history)
-        confirmed_counts = len(list(filter(lambda x:x["Confirmed"] != None, self.history)))
-        self.tableFile.update_confirm_counts_header(confirmed_counts)
+        if self.last_loaded_dicom_db_time == None or self.last_loaded_dicom_db_time != os.path.getmtime(self.dicom_db_path):
+            with database.DicomDatabaseAPI(self.dicom_db_path) as dbapi:
+                self.history, self.loaded_path = refresh(self.history,
+                                                        dbapi, 
+                                                        path_dicom=const.PATH_DICOM, 
+                                                        loaded_path=self.loaded_path)
+            # Update loaded time
+            self.last_loaded_dicom_db_time = os.path.getmtime(self.dicom_db_path)
+
+            self.tableFile.clear()
+            self.tableFile._addData(self.history)
+            confirmed_counts = len(list(filter(lambda x:x["Confirmed"] != None, self.history)))
+            self.tableFile.update_confirm_counts_header(confirmed_counts)
+            # Recover the last sort
+            sort_column = getattr(self.tableFile, "sortBy", 0)
+            sort_reverse = getattr(self.tableFile, "sort_reverse", False)
+            self.tableFile.sortByColumn(sort_column, Qt.SortOrder.DescendingOrder if sort_reverse else Qt.SortOrder.AscendingOrder)
+
         # Update Last Modified
         self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(datetime.datetime.now().strftime("%Y/%d/%m %H:%M:%S")))
         # Recover the last sort
