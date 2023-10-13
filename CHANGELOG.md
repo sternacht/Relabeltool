@@ -1,9 +1,10 @@
 # Change Log
 ---
 ## [Known Bug]
-- Bug in Hidden Mode
-Acknowledged an issue where drawing a rectangle in hidden mode may result in the frame not updating as expected. Further investigation and work are in progress to address this concern.
+- In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 ## [Unreleased]
+
+## [2.0.9] - 2023-10-13
 ### Added
 - Added User Option:
     - Implemented a user selection feature.
@@ -16,7 +17,6 @@ Acknowledged an issue where drawing a rectangle in hidden mode may result in the
     - Users can now view the current number of confirmations made by each user.
     - This information can be accessed by selecting the "Confirmed Status" option in the "Help" menu located at the top.
     - Users can now easily identify which user made a confirmation directly within the table located in the top left corner.
-
 - Implemented scroll wheel functionality on the canvas.
     - Users can now conveniently switch between different slice by using the mouse scroll wheel to navigate upwards or downwards.
 - Added a "Save" button in the right section.
@@ -24,16 +24,17 @@ Acknowledged an issue where drawing a rectangle in hidden mode may result in the
 - Added automatic refresh feature
     - The table is automatically refreshed every 60 seconds by default. You can modify this by using help>Change Auto Refresh Frequency.
     - Added display of last refresh time in the top left area.
+- Added "mark type" field in the nodule annotation table to display the type of the annotation. Currently supports two types: rectangle and polygon.
 ### Changed
 - User Experience Improvement
     - Change the default mode of add new nodule button from "rectangle" to "polygon"
-
 ### Fixed
 - Display Optimization:
     - Improved the functionality to view changes instantly for display labels and change point size without requiring a refresh by toggling.
 - Display Label Bug Fix:
     - Fixed a bug in the display label section.
     - The bug was caused by missing the "group id" attribute for new labels, which has been addressed and resolved.
+- Fix the unexpected behavior during annotation in hidden mode.
 ### Removed
 - Code Cleanup
     Eliminated unnecessary code files:

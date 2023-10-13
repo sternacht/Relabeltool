@@ -362,6 +362,7 @@ def patientAnalysis(patient_tracking:dict, spacing = (0.6, 0.6, 1)):
             threedV = np.max(length) * len(length) * spacing[0] * spacing[1] * spacing[2]
             diameter = np.round(pow(threedV, 1/3), 4)
 
+            # Find category
             try:
                 if bboxes[0][-1]['mode'] == 0:
                     category_name, category_id = category_f(diameter)
@@ -370,11 +371,21 @@ def patientAnalysis(patient_tracking:dict, spacing = (0.6, 0.6, 1)):
                     category_name = list_category[category_id]
             except:
                 category_name, category_id = category_f(diameter)
+                
+            # Find mark type
+            mark_type = 'rectangle'
+            for nodule_2d_info in bboxes:
+                info = nodule_2d_info[-1]
+                if info['shape_type'] == 'polygon':
+                    mark_type = 'polygon'
+                    break
+            
             patient_data = {
                 'NoduleID': noduleId,
                 'Slice_range': slice_list,
                 "Diameters" : diameter,
                 "Category" : category_name,
+                "Mark Type": mark_type,
                 'data': bboxes,
                 'description': data[0][-1].get('description', None) if len(data[0]) > 7 else None
             }

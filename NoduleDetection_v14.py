@@ -197,7 +197,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self._init_auto_refresh()
 
     def _init_paramters(self):
-        self.history = [] # keep the information of each series
+        self.history = [] # A list of patients' information, e.g.: [{'PatientID': '000569', 'Gender':'F'}, {'PatientID': '001569', 'Gender':'M'}]
         self.loaded_path = []
     
     def _init_auto_refresh(self):
@@ -1354,9 +1354,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 y_center = (s0[1] + s0[3])//2
                 if not self.view_lock:
                     self.zoom_area(x_center, y_center)
-        if not self.hidden_on:
-            self.display.update_shape(ds)
-            self.zoomDisplay.update_shape(ds)
+        self.display.update_shape(ds)
+        self.zoomDisplay.update_shape(ds)
+        # In hidden mode, after load labels, set all shapes invisible.
+        if self.hidden_on:
+            self.display.canvas.setAllShapeVisible(False)
+            self.zoomDisplay.canvas.setAllShapeVisible(False)
 
     def save_label(self, current_slice, display_shapes, save_new=False):
         # current_slice = self.current_slice
@@ -1443,11 +1446,15 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 db_api.update_is_relabel(series_id, True)
                 db_api.update_relabel_user(series_id, self.user_name)
                 
+            # Update the confirmed status of current patient
+            self.tableFile.update_one_row_confirm_status(self.dirname, self.user_name)
+            for i in range(len(self.history)):
+                if self.history[i]["Path"] == self.dirname:
+                    self.history[i]["Confirmed"] = 'V'
+                    break
             # Update the confirmed counts
             confirmed_counts = len(list(filter(lambda x: x["Confirmed"] == 'V', self.history)))
             self.tableFile.update_confirm_counts_header(confirmed_counts)
-            # Update the confirmed status of current patient
-            self.tableFile.update_one_row_confirm_status(self.dirname, self.user_name)
             
         else:
             self.errorMessage("Resample mask failed")
@@ -2414,19 +2421,22 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             return iou_score
 
         def overlap(pred_mask, cur_slice_nodule):
-            
-            blank_mask = np.zeros(self.mImgSize + [3]).astype(np.uint8)
+            #  blank_mask = np.zeros(self.mImgSize + [3]).astype(np.uint8)
             for nodule in cur_slice_nodule:
                 if (nodule['shape_type'] != 'polygon'):
                     continue
                 try:
-                    mask3d = cv2.fillConvexPoly(blank_mask.copy(),
-                                                    np.array(nodule['points'],dtype=np.int32),
-                                                    (255,255,255))
-                    mask = cv2.cvtColor(mask3d,cv2.COLOR_BGR2GRAY)
+                    mask = nodule['mask']
                     iou = numpy_iou(pred_mask, mask)
-                    if iou > 0:
+                    if iou > 0.3:
                         return True
+                    # mask3d = cv2.fillConvexPoly(blank_mask.copy(),
+                    #                                 np.array(nodule['points'],dtype=np.int32),
+                    #                                 (255,255,255))
+                    # mask = cv2.cvtColor(mask3d,cv2.COLOR_BGR2GRAY)
+                    # iou = numpy_iou(pred_mask, mask)
+                    # if iou > 0:
+                    #     return True
                 except:
                     continue
             return False
