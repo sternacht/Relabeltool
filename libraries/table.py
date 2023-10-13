@@ -238,11 +238,12 @@ class AnalysisTable(QTableWidget):
     color_signal = pyqtSignal(int, dict, int)
     def __init__(self, header = None):
         if header is None:
-            self.header = ['Nodule ID','Slice Range',
-                            "Diameter (mm)",
-                            "Category",
-                            "Mark Type",
-                            "Options"]
+            self.header = ["Nodule ID",
+                           "Slice Range",
+                           "Diameter (mm)",
+                           "Category",
+                           "Mark Type",
+                           "Options"]
         else:
             self.header = header
         super().__init__(0, len(self.header))
@@ -284,7 +285,7 @@ class AnalysisTable(QTableWidget):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         try:
             index = self.header.index("Category")
-            self.horizontalHeader().setSectionResizeMode(index, QHeaderView.Stretch)
+            self.horizontalHeader().setSectionResizeMode(index, QHeaderView.ResizeToContents)
             index = self.header.index("Options")
             self.horizontalHeader().setSectionResizeMode(index, QHeaderView.ResizeToContents)
         except:
