@@ -2340,6 +2340,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                             shape.addPoint(QPointF(x, y))
                             shape.close()
                         replace_shape = True
+                        self.gid.add(shape.group_id)
 
                 if not replace_shape:
 
@@ -2416,6 +2417,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             
             blank_mask = np.zeros(self.mImgSize + [3]).astype(np.uint8)
             for nodule in cur_slice_nodule:
+                if (nodule['shape_type'] != 'polygon'):
+                    continue
                 try:
                     mask3d = cv2.fillConvexPoly(blank_mask.copy(),
                                                     np.array(nodule['points'],dtype=np.int32),
@@ -2465,15 +2468,15 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                                         )
                         
                         iou = numpy_iou(origin_mask, pred)
+                        polygon, centers = get_polygon((pred.astype(np.uint8) * 255))
+                        if iou < 0.60 or (polygon == None or centers == None):
+                            return num_slice
                         if num_slice in self.results_nodule.keys():
                             # overlap with exist mask, stop propagate
                             if overlap(pred, self.results_nodule[num_slice]):
                                 return num_slice
                             # overlap with exist rect, delete rect
                             del_overlap_rect(pred, self.results_nodule[num_slice])
-                        polygon, centers = get_polygon((pred.astype(np.uint8) * 255))
-                        if iou < 0.60 or (polygon == None or centers == None):
-                            return num_slice
 
                         origin_mask = pred
                         shapes = []

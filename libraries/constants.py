@@ -1,9 +1,9 @@
 from PyQt5.QtGui import QColor
 
-PATH_DICOM = "./data\\dicom"
-DICOM_DB = "./data\\dicom.db"
+PATH_DICOM = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom"
+DICOM_DB = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom.db"
 # PATH_LOG = r"../Database_test/Log"
-
+# PATH_DICOM = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom"
 
 SETTING_FILENAME = 'filename'
 SETTING_RECENT_FILES = 'recentFiles'
