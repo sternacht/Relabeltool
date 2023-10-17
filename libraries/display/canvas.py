@@ -446,7 +446,7 @@ class Canvas(QtWidgets.QWidget):
                 elif pos.y() > self.pixmap.height(): self.zoomY = self.pixmap.height()
                 else: self.zoomY = pos.y()
                 if self.zoomX is not None and self.zoomY is not None:
-                    self.zoomPixmap.emit(self.zoomX, self.zoomY, True)
+                    self.zoomPixmap.emit(int(self.zoomX), int(self.zoomY), True)
 
             
         elif ev.button() == QtCore.Qt.RightButton: 

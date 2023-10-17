@@ -72,6 +72,30 @@ def follow_patient(bb_dict:dict):
         
     return patient_dict, patient_file
 
+def cal_bbox2ds_iou(bboxes1: np.ndarray, bboxes2: np.ndarray):
+    """
+    Calculate IoU of list of bounding box.
+    Args:
+        bboxes1 (numpy.ndarray): 
+            First set of bounding boxes, in shape (n, 4), n is the number of bounding boxes, each bounding box has [x_min, y_min, x_max, y_max] format coordinates.
+        bboxes2 (numpy.ndarray): 
+            Second set of bounding boxes, in shape (m, 4), m is the number of bounding boxes, each bounding box has [x_min, y_min, x_max, y_max] format coordinates.
+    Returns:
+        iou_matrix (numpy.ndarray): 
+            IoU matrix, in shape (n, m), representing the IoU between the first set of bounding boxes and the second set of bounding boxes.
+    """
+    # Calculate intersection areas
+    intersect_min = np.maximum(bboxes1[:, :2].reshape(-1, 1, 2), bboxes2[:, :2])
+    intersect_max = np.minimum(bboxes1[:, 2:].reshape(-1, 1, 2), bboxes2[:, 2:])
+    intersect_area = np.prod(np.maximum(0, intersect_max - intersect_min), axis=2)
+
+    area_bboxes1 = np.prod(bboxes1[:, 2:] - bboxes1[:, :2], axis=1)
+    area_bboxes2 = np.prod(bboxes2[:, 2:] - bboxes2[:, :2], axis=1)
+
+    iou_matrix = intersect_area / (area_bboxes1.reshape(-1, 1) + area_bboxes2 - intersect_area)
+
+    return iou_matrix
+
 def distance_ratio(BB1:np.array, BB2:np.array):
     bboxes1 = BB1[:,:4]
     bboxes2 = BB2[:,:4]
@@ -94,8 +118,6 @@ def distance_ratio(BB1:np.array, BB2:np.array):
     out_max_xy = np.maximum(bboxes1[:, 2:], bboxes2[:, 2:])
     out_min_xy = np.minimum(bboxes1[:, :2], bboxes2[:, :2])
 
-    # print('==out_min_xy:', out_min_xy)
-    # print('==out_max_xy:', out_max_xy)
 
     inter_diag = (center_x2 - center_x1)**2 + (center_y2 - center_y1)**2
     
@@ -182,77 +204,115 @@ def dict2txt(merged_dict:dict, patient_file:dict):
     return string_txt
 
 class NoduleTracker():
-    def __init__(self, maxDisappeared= 1, dcThres = 0.1):
-        self.__nextObjectedId = 0
-        self.objects = OrderedDict()
-        self.slices = OrderedDict()
-        self.__disappeared = OrderedDict()
-        self.__maxdisappeared = maxDisappeared
-        self.__dcThres = dcThres
-        pass
-
-    def register(self, rect, slice):
-        self.objects[self.__nextObjectedId] = rect
-        self.slices[self.__nextObjectedId] = slice
-        self.__disappeared[self.__nextObjectedId] = 0
-        self.__nextObjectedId += 1
-        pass
-
-    def deregister(self, objectID):
-        del self.objects[objectID]
-        del self.slices[objectID]
-        del self.__disappeared[objectID]
-        pass
-
-    def update(self, rects: List[Any], num_slice):
-        if len(rects) == 0:
-            for objectID in list(self.__disappeared.keys()):
-                self.__disappeared[objectID] += 1
-                if self.__disappeared[objectID] >= self.__maxdisappeared:
-                    self.deregister(objectID)
-            return self.objects, self.slices
-        if len(self.objects) == 0:
-            for i in range(0, len(rects)):
-                self.register(rects[i],num_slice)
-        else:
-            objectIDs = list(self.objects.keys())
-            objectRects = list(self.objects.values())
-            distance_matrix = []
-            for rect in rects:
-                D = distance_ratio(np.array([rect]), np.array(objectRects))
-                distance_matrix.append(D)
-
-            distance_matrix = np.array(distance_matrix).T
-            position = np.argwhere(distance_matrix < self.__dcThres)
-
-            usedRows = set()
-            usedCols = set()
-
-            for (row, col) in position:
-                if row in usedRows or col in usedCols:
-                    continue
-                objectID = objectIDs[row]
-                self.objects[objectID] = rects[col]
-                self.slices[objectID] = num_slice
-                self.__disappeared[objectID] = 0
-                usedRows.add(row)
-                usedCols.add(col)
-            unusedRows = set(range(0, distance_matrix.shape[0])).difference(usedRows)
-            unusedCols = set(range(0, distance_matrix.shape[1])).difference(usedCols)
-            if distance_matrix.shape[0] >= distance_matrix.shape[1]:
-                for row in unusedRows:
-                    objectID = objectIDs[row]
-                    self.__disappeared[objectID] += 1
-
-                    if self.__disappeared[objectID] > self.__maxdisappeared:
-                        self.deregister(objectID)
-            else:
-                for col in unusedCols:
-                    self.register(rects[col], num_slice)
-
-        return self.objects, self.slices
-def colect3d(mergedDict: Dict[str, Dict[int, List[Dict[str, Any]]]]):
+    """Track nodule in slices
+    
+    Use 2D bounding box in each slice to track 3D bounding box
     """
+    def __init__(self, max_num_of_disappeared = 1, iou_threshold = 0.0):
+        self.tracked_nodule_bbox2ds = OrderedDict()
+        self.tracked_nodule_slice_ids = OrderedDict()
+        self.__next_nodule_id = 0
+        self.__disappeared = OrderedDict()
+        self.__max_num_of_disappeared = max_num_of_disappeared
+        self.__iou_threshold = iou_threshold
+
+    def register(self, nodule_bbox2ds: List[Any], slice_i: int) -> None:
+        self.tracked_nodule_bbox2ds[self.__next_nodule_id] = nodule_bbox2ds
+        self.tracked_nodule_slice_ids[self.__next_nodule_id] = slice_i
+        self.__disappeared[self.__next_nodule_id] = 0
+        self.__next_nodule_id += 1
+
+    def deregister(self, nodule_id: int) -> None:
+        del self.tracked_nodule_bbox2ds[nodule_id]
+        del self.tracked_nodule_slice_ids[nodule_id]
+        del self.__disappeared[nodule_id]
+
+    def update(self, 
+               nodule_bbox2d_infos: List[Any], 
+               slice_i: int) -> Tuple[Dict[int, List[Any]], Dict[int, int]]:
+        """
+        Args:
+            nodule_bbox2d_infos: 
+                List of bounding box in format [x1, y1, x2, y2, cls, conf, <whole dict>]
+                <whole dict> is the whole dictionary of bounding box in format
+                {
+                    'label': 'nodule',
+                    'points': [(x1,y1), (x2, y2)],
+                    'conf': conf,
+                    'checked': True,
+                    'category': category_id,
+                    'shape_type': 'rectangle',
+                    'group_id': noduleId,
+                    'rect': [x1,y1,x2,y2],
+                    'description': None
+                }
+            slice_i: 
+                slice number
+        Return:
+            Tuple of (tracked_nodule_3d, slice_ids), where
+            tracked_nodule_3d: 
+                Dictionary of bounding box in format
+                {
+                    nodule_id: [x1, y1, x2, y2, cls, conf, <whole dict>]
+                }
+            slice_ids:
+                Dictionary of slice number in format
+                {
+                    nodule_id: slice_i
+                }
+        """
+        
+        # if there are not any nodules, deregister all objects
+        if len(nodule_bbox2d_infos) == 0:
+            for nodule_id in list(self.__disappeared.keys()):
+                self.__disappeared[nodule_id] += 1
+                if self.__disappeared[nodule_id] >= self.__max_num_of_disappeared:
+                    self.deregister(nodule_id)
+            return self.tracked_nodule_bbox2ds, self.tracked_nodule_slice_ids
+        
+        # if there is no object, register all rects
+        if len(self.tracked_nodule_bbox2ds) == 0:
+            for i in range(len(nodule_bbox2d_infos)):
+                self.register(nodule_bbox2d_infos[i], slice_i)
+        else:
+            tracked_nodule_ids = list(self.tracked_nodule_bbox2ds.keys())
+            
+            nodule_bbox2ds = []
+            for bbox_info in nodule_bbox2d_infos:
+                nodule_bbox2ds.append(bbox_info[:4])
+            tracked_nodule_bbox2ds = []
+            for bbox_info in self.tracked_nodule_bbox2ds.values():
+                tracked_nodule_bbox2ds.append(bbox_info[:4])
+                
+            iou_matrix = cal_bbox2ds_iou(np.array(nodule_bbox2ds), np.array(tracked_nodule_bbox2ds))
+            iou_matrix = iou_matrix.T
+            
+            max_value_along_row = np.max(iou_matrix, axis=1)
+            
+            max_value_along_col = np.max(iou_matrix, axis=0)
+            argmax_value_along_col = np.argmax(iou_matrix, axis=0)
+            
+            # Deregiseter old object
+            for i in range(len(max_value_along_row)):
+                if max_value_along_row[i] <= self.__iou_threshold:
+                    nodule_id = tracked_nodule_ids[i]
+                    self.__disappeared[nodule_id] += 1
+                    if self.__disappeared[nodule_id] >= self.__max_num_of_disappeared:
+                        self.deregister(nodule_id)
+            # Register new object or update old object
+            for row_i, col_i in zip(argmax_value_along_col, range(len(max_value_along_col))):
+                old_objectID = tracked_nodule_ids[row_i]
+                if max_value_along_col[col_i] > self.__iou_threshold:
+                    self.tracked_nodule_bbox2ds[old_objectID] = nodule_bbox2d_infos[col_i]
+                    self.tracked_nodule_slice_ids[old_objectID] = slice_i
+                    self.__disappeared[old_objectID] = 0
+                else:
+                    self.register(nodule_bbox2d_infos[col_i], slice_i)
+                    
+        return self.tracked_nodule_bbox2ds, self.tracked_nodule_slice_ids
+    
+def collect3d(patient_merged_dict: Dict[str, Dict[int, List[Dict[str, Any]]]]):
+    """Merge 2D bounding boxes into 3D bounding boxes
     Args:
         mergedDict: Dictionary with format
         {
@@ -275,28 +335,32 @@ def colect3d(mergedDict: Dict[str, Dict[int, List[Dict[str, Any]]]]):
     """
     
     patient_tracking = {}
-    for patient, slices_m in mergedDict.items():
-        nt = NoduleTracker(maxDisappeared = 1)
-        tracking = {}
-        for slice, bboxes in slices_m.items():
-            m_bboxes = []
+    for patient, slices_merged_dict in patient_merged_dict.items():
+        nodule_tracker = NoduleTracker(max_num_of_disappeared = 1)
+        tracking = dict()
+        for slice_i, bboxes in slices_merged_dict.items():
+            merged_bbox2ds = []
+            
             for bb in bboxes:
                 if bb is None:
                     continue
                 if isinstance(bb, dict):
-                    m_bboxes.append([*bb['rect'], 0, bb['conf'], bb]) # x1, y1, x2, y2, cls, conf, <whole dict>
-                else:
-                    m_bboxes.append(bb[:6])
-            objects, slices = nt.update(m_bboxes, slice)
-            for (objectID, bboxes) in objects.items():
-                if objectID not in tracking.keys():
-                    tracking[objectID] = []
-                
-                tracking[objectID].append([slices[objectID]] + list(bboxes))
-            if slice + 1 not in slices_m.keys():
-                objects, slices = nt.update([], slice + 1)
-            # if slice + 2 not in slices_m.keys():
-            #     objects, slices = nt.update([], slice + 2)
+                    merged_bbox2ds.append([*bb['rect'], 0, bb['conf'], bb]) # [x1, y1, x2, y2, cls, conf, <whole dict>]
+                elif isinstance(bb, list):
+                    merged_bbox2ds.append(bb[:6])
+            tracked_nodule_bbox2ds, slice_ids = nodule_tracker.update(merged_bbox2ds, slice_i)
+            
+            # Add tracked nodule to tracking
+            for nodule_id, bboxes in tracked_nodule_bbox2ds.items():
+                if nodule_id not in tracking.keys():
+                    tracking[nodule_id] = []
+                # concat (slice_id, x1, y1, x2, y2, cls, conf, <whole dict>) into a list
+                tracking[nodule_id].append([slice_ids[nodule_id]] + list(bboxes)) 
+            
+            # Check whether there are not any nodule in next 2 slices
+            if slice_i + 1 not in slices_merged_dict.keys():
+                tracked_nodule_bbox2ds, slice_ids = nodule_tracker.update([], slice_i + 1)
+        
         noduleId = {}
         noduleID_count = 1
         for _, values in tracking.items():
@@ -362,7 +426,6 @@ def patientAnalysis(patient_tracking:dict, spacing = (0.6, 0.6, 1)):
             threedV = np.max(length) * len(length) * spacing[0] * spacing[1] * spacing[2]
             diameter = np.round(pow(threedV, 1/3), 4)
 
-            # Find category
             try:
                 if bboxes[0][-1]['mode'] == 0:
                     category_name, category_id = category_f(diameter)
@@ -371,7 +434,7 @@ def patientAnalysis(patient_tracking:dict, spacing = (0.6, 0.6, 1)):
                     category_name = list_category[category_id]
             except:
                 category_name, category_id = category_f(diameter)
-                
+            
             # Find mark type
             mark_type = 'rectangle'
             for nodule_2d_info in bboxes:
@@ -411,7 +474,6 @@ def patientAnalysis(patient_tracking:dict, spacing = (0.6, 0.6, 1)):
                     }
                 if slice_num not in patient_dict.keys():
                     patient_dict[slice_num] = []
-                    # print(slice_num)
                 patient_dict[slice_num].append(s)
         new_patient_dict[patient] = patient_dict
     return patient_list, new_patient_dict            
@@ -427,7 +489,7 @@ if __name__ == "__main__":
     # bboxes = readtxt(r"D:\Master\02_Project\NoduleDetection_v4\test.txt")
     bboxes = readtxt(path)
     merged_dict, filedict = merge_overlapping(bboxes)
-    patient_tracking = colect3d(merged_dict)
+    patient_tracking = collect3d(merged_dict)
     patient_list, patient_dict = patientAnalysis(patient_tracking)
     print(patient_dict)
     # string_txt= dict2txt(merged_dict, filedict)

@@ -6,7 +6,7 @@
 ### Fixed
 - Speed up the loading of the nodule table
 - Set the time zone for displaying the last update time on the table to UTC+8 for consistency and accuracy in representation
-
+- Fix when 
 ## [2.0.9] - 2023-10-13
 ### Added
 - Added User Option:

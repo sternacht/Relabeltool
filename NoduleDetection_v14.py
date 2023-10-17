@@ -2055,7 +2055,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             patient_ID = self.patient_infor['PatientID']
             results_nodule = sorted(self.results_nodule.items())
             dict_patient = {patient_ID : dict(results_nodule)}
-            patient_tracking = olap.colect3d(dict_patient)
+            patient_tracking = olap.collect3d(dict_patient)
             self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
             self.results_nodule = list(new_dict_patient.values())[0]
             self.table_analysis.clear()
@@ -2073,7 +2073,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 self.load_file(self.image_data_dict[self.current_slice]['data'], 
                                self.image_data_dict[self.current_slice]['path'],
                                self.image_data_dict[self.current_slice]['mode'])
-        pass
 
     def delete_item_analysis_table(self, id_no:int, list_remove:list, list_analysis:list):
         if len(list_remove) > 0:
@@ -2142,7 +2141,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             # if len(list(dict_patient.values())[0]) <= 1:
             #     pathtxt = os.path.join(self.dirname, "inference.txt")
             #     dict_patient, dict_file = olap.follow_patient(olap.readtxt(pathtxt))
-            patient_tracking = olap.colect3d(dict_patient)
+            patient_tracking = olap.collect3d(dict_patient)
             self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
             if new_dict_patient:
                 self.results_nodule = list(new_dict_patient.values())[0]
@@ -2195,7 +2194,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 # if len(list(dict_patient.values())[0]) <= 1:
                 #     pathtxt = os.path.join(self.dirname, "inference.txt")
                 #     dict_patient, dict_file = olap.follow_patient(olap.readtxt(pathtxt))
-                patient_tracking = olap.colect3d(dict_patient)
+                patient_tracking = olap.collect3d(dict_patient)
                 self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
                 if new_dict_patient:
                     self.results_nodule = list(new_dict_patient.values())[0]
