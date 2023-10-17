@@ -208,7 +208,7 @@ class NoduleTracker():
         if len(rects) == 0:
             for objectID in list(self.__disappeared.keys()):
                 self.__disappeared[objectID] += 1
-                if self.__disappeared[objectID] > self.__maxdisappeared:
+                if self.__disappeared[objectID] >= self.__maxdisappeared:
                     self.deregister(objectID)
             return self.objects, self.slices
         if len(self.objects) == 0:
@@ -276,7 +276,7 @@ def colect3d(mergedDict: Dict[str, Dict[int, List[Dict[str, Any]]]]):
     
     patient_tracking = {}
     for patient, slices_m in mergedDict.items():
-        nt = NoduleTracker(maxDisappeared=1)
+        nt = NoduleTracker(maxDisappeared = 1)
         tracking = {}
         for slice, bboxes in slices_m.items():
             m_bboxes = []
@@ -295,8 +295,8 @@ def colect3d(mergedDict: Dict[str, Dict[int, List[Dict[str, Any]]]]):
                 tracking[objectID].append([slices[objectID]] + list(bboxes))
             if slice + 1 not in slices_m.keys():
                 objects, slices = nt.update([], slice + 1)
-            if slice + 2 not in slices_m.keys():
-                objects, slices = nt.update([], slice + 2)
+            # if slice + 2 not in slices_m.keys():
+            #     objects, slices = nt.update([], slice + 2)
         noduleId = {}
         noduleID_count = 1
         for _, values in tracking.items():

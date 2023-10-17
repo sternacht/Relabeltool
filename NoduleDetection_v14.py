@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import List, Dict, Tuple, Union, Optional, Any
 # from grabcut_dialog import grabcut_dialog
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 try: 
     from PyQt5.QtGui import *
     from PyQt5.QtWidgets import *
@@ -28,6 +29,33 @@ from libraries import *
 import glob
 
 __appname__ = "2D Nodule Detection & Manual Labeling (RoboticLAB NCKU)"
+
+class SHAPETYPE:
+    POLYGON = 'polygon'
+    RECTANGLE = 'rectangle'
+
+def points_to_mask(points: List[Tuple[int, int]], shape: Tuple[int, int, int]) -> np.ndarray:
+    """Convert a list of points to a binary mask.
+    
+    Args:
+        points (List[Tuple[int, int]]): list of points
+        shape (Tuple[int, int, int]): shape of the image
+    
+    Return:
+        A binary mask of shape (height, width) with dtype np.uint8
+    """
+    if len(shape) != 3:
+        raise ValueError("shape must be a tuple of 3 elements")
+    
+    points = np.array(points, dtype = np.int32)
+    
+    mask = np.zeros(shape, dtype=np.uint8)
+    mask = cv2.fillConvexPoly(mask.copy(),
+                            points = points,
+                            color = (255,255,255))
+    mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+    return mask
+
 
 def read(filename, default=None):
     try:
@@ -236,8 +264,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.zoom_y = None
         self.point_size = 4
 
-        # store the nodule gid need to adapt after propagation
-        self.gid = set()
+        # store the nodule group id need to adapt after propagation
+        self.deleted_group_ids_after_propagation = set()
         # Mode default setting
         self.s = [] # keep total nodule on cur_slice for benign hidden mode
         self.edit_on = 0
@@ -758,6 +786,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.tableFile.sortByColumn(sort_column, Qt.SortOrder.DescendingOrder if sort_reverse else Qt.SortOrder.AscendingOrder)
         # Update Last Modified
         tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
+        # tw_zone = datetime.timedelta(minutes=3, seconds=5)  
         self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(datetime.datetime.now(tw_zone).strftime("%Y/%m/%d %H:%M:%S")))
     def load_recent(self, path):
         if self.may_continue():
@@ -1287,14 +1316,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             return (x1,y1,x2,y2)
 
         shape = Shape(label= label,
-                    shape_type= shape_type ,
-                    group_id= group_id ,
-                    category= category , 
-                    conf= conf ,
-                    checked= checked ,
-                    rect= rect ,
-                    mask= mask ,
-                    point_size= self.point_size)
+                    shape_type = shape_type,
+                    group_id = group_id,
+                    category = category, 
+                    conf = conf,
+                    checked = checked,
+                    rect = rect,
+                    mask = mask,
+                    point_size = self.point_size)
         for x, y in points:
             # Ensure the labels are within the bounds of the image. If not, fix them.
             x, y, snapped = self.display.canvas.snapPointToCanvas(x, y)
@@ -1367,32 +1396,48 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.display.canvas.setAllShapeVisible(False)
             self.zoomDisplay.canvas.setAllShapeVisible(False)
 
-    def save_label(self, current_slice, display_shapes, save_new=False):
-        # current_slice = self.current_slice
+    def save_label(self, current_slice: int, display_shapes: List[Shape], add_new_shape = False):
+        """
+        Args:
+            current_slice: int
+                current slice number
+            display_shapes: List[Shape]
+                all shapes in current slice
+            add_new_shape: bool
+                only use in propagate, if cur_slice has nodule already, append new shape to it.
+        """
         shapes = []
         nodule_id = []
-        # for shape in self.display.shapes():
+        
         for shape in display_shapes:
             if shape.shape_type == 'point' or shape.shape_type == 'line':
                 continue
             shapes.append(shape.shape2dict())
             nodule_id.append(shape.group_id)
+        
+        # Hide the benign nodules
         if self.benign_hidden.isChecked():
             for shape in self.s:
                 if shape.category == 0 and shape.group_id not in nodule_id:
                     if shape.shape_type == 'point' or shape.shape_type == 'line':
                         continue
                     shapes.append(shape.shape2dict())
-        if len(shapes) >0:
+        
+        if len(shapes) > 0:
             if self.results_nodule is None or len(self.results_nodule) <= 0:
                 self.results_nodule = {}
-            if save_new and current_slice in self.results_nodule.keys():    # only occur in propagate.
-                self.results_nodule[current_slice].append(shapes[0])        # if cur_slice has nodule 
-            else:                                                           # already, use append, else
-                self.results_nodule[current_slice] = shapes                 # use assignment.
-        else:
-            pass
-
+            
+            if current_slice not in self.results_nodule:
+                self.results_nodule[current_slice] = []
+                
+            if not add_new_shape:
+                self.results_nodule[current_slice] = shapes
+            else: # only occur in propagate.
+                if current_slice not in self.results_nodule.keys():
+                    self.results_nodule[current_slice] = [shapes[0]]
+                else:
+                    self.results_nodule[current_slice].append(shapes[0])
+                
     def save_all_labels(self):
         def saved_notify():
             ok = QMessageBox.Ok
@@ -2285,7 +2330,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     point = (x, y, 0)
                 seq_points.append(point)
         seq_points = np.array(seq_points, dtype = np.int64) # shape = (n, 3)
-        self.prev_points = seq_points.copy()
         
         if self.interactiveModel is not None and len(seq_points) > 0:
             try:
@@ -2327,7 +2371,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         #         return True
         #     else :
         #         return False
-        def overlap(pred, rect):
+        def overlap(pred, rect) -> bool:
             pred_mask = pred[rect[1]:rect[3],rect[0]:rect[2]]
             if pred_mask.sum() > 0:
                 return True
@@ -2339,37 +2383,45 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.errorMessage("Error Segmentation", f"None to save")
         else:
             shapes = self.display.shapes()
-            # shapes = [shape for shape in shapes if shape.shape_type != 'point' and shape.shape_type != 'line']
-            replace_shape = False
-            for ps, cen in zip(polygon, centers):
-                if cen is None: continue
-                ps = np.array(ps)
+            is_shape_replaced = False
+            
+            # Check if the segmentation in current slice overlap with the previous segmentation
+            for points, center_point in zip(polygon, centers):
+                if center_point is None: 
+                    continue
+                points = np.array(points)
                 for shape in shapes:
-                    if shape.shape_type == 'rectangle' and overlap(self.predmask, np.array(shape.rect, dtype=np.int32)):
+                    # there are some rectangles shape overlap with the segmentation mask, then replace it with polygon
+                    if shape.shape_type == SHAPETYPE.RECTANGLE and overlap(self.predmask, np.array(shape.rect, dtype=np.int32)):
                         shape.points.clear()
-                        shape.shape_type = 'polygon'
-                        for x, y in ps:
+                        shape.shape_type = SHAPETYPE.POLYGON
+                        for x, y in points:
                             # Ensure the labels are within the bounds of the image. If not, fix them.
                             x, y, snapped = self.display.canvas.snapPointToCanvas(x, y)
                             if snapped:
                                 self.set_dirty()
                             shape.addPoint(QPointF(x, y))
                             shape.close()
-                        replace_shape = True
-                        self.gid.add(shape.group_id)
+                        is_shape_replaced = True
+                        self.deleted_group_ids_after_propagation.add(shape.group_id)
 
-                if not replace_shape:
-
-                    shape = self.setDefautShape(label='nodule',
-                                                points=ps,
-                                                shape_type='polygon',
-                                                mask= self.predmask.astype(np.uint8)
+                # If there is no overlap, create a new polygon shape with points from the segmentation mask
+                if not is_shape_replaced:
+                    shape = self.setDefautShape(label = 'nodule',
+                                                points = points,
+                                                shape_type = SHAPETYPE.POLYGON,
+                                                mask = self.predmask.astype(np.uint8)
                                                 )
                     shapes.append(shape)
-                cen = list(centers[0])
-                cen.append(1)
-                self.prev_points = np.array([cen], dtype=np.int64)
-            self.propagate()
+                    
+                center_point = list(centers[0])
+                center_point.append(1)
+                
+                seq_points = np.array([center_point], dtype=np.int64)
+            
+            # Use the points on current slice to propagate the segmentation to the neighboring slices
+            self.propagate(seq_points)
+            
             self.load_file(self.image_data_dict[self.current_slice]['data'], 
                             self.image_data_dict[self.current_slice]['path'],
                             self.image_data_dict[self.current_slice]['mode'])
@@ -2418,130 +2470,154 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.toggle_view_mode(True)
             self.update()
 
-    def propagate(self):
+    def propagate(self, seq_points: np.ndarray):
         """Propagate the segmentation to the neighboring slices.
+        
+        Args:
+            seq_points: The points of polygon on current slice.
         """
-        def numpy_iou(y_true: np.ndarray, y_pred: np.ndarray):
+        def numpy_iou(y_true: np.ndarray, y_pred: np.ndarray) -> float:
             """Calculate the IOU of two masks
+            
             """
             intersection = np.logical_and(y_true, y_pred)
             union = np.logical_or(y_true, y_pred)
             iou_score = np.sum(intersection) / np.sum(union)
             return iou_score
 
-        def overlap(pred_mask, cur_slice_nodule):
-            #  blank_mask = np.zeros(self.mImgSize + [3]).astype(np.uint8)
-            for nodule in cur_slice_nodule:
-                if (nodule['shape_type'] != 'polygon'):
-                    continue
-                try:
-                    mask = nodule['mask']
-                    iou = numpy_iou(pred_mask, mask)
-                    if iou > 0.3:
-                        return True
-                    # mask3d = cv2.fillConvexPoly(blank_mask.copy(),
-                    #                                 np.array(nodule['points'],dtype=np.int32),
-                    #                                 (255,255,255))
-                    # mask = cv2.cvtColor(mask3d,cv2.COLOR_BGR2GRAY)
-                    # iou = numpy_iou(pred_mask, mask)
-                    # if iou > 0:
-                    #     return True
-                except:
-                    continue
-            return False
-
-        def del_overlap_rect(pred, cur_slice_nodule):
-            nodule_copy = cur_slice_nodule.copy()
-            nodule_copy.reverse()
-            for nodule in nodule_copy:
-                if nodule['shape_type'] == 'rectangle':
-                    rect = np.array(nodule['rect'],dtype=np.int32)
-                    pred_mask = pred[rect[1]:rect[3],rect[0]:rect[2]]
-                    if (pred_mask.sum() > 0) :
-                        self.gid.add(nodule['group_id'])
-                        del cur_slice_nodule[cur_slice_nodule.index(nodule)]
-
-        def remove_old_rect():
-            if len(self.gid) == 0:
+        def remove_old_rects() -> None:
+            """
+            Remove the old rectangles that are overlapped with the propagated mask.
+            
+            """
+            if len(self.deleted_group_ids_after_propagation) == 0:
                 return
-            for num in self.results_nodule.keys():
-                for nodule in self.results_nodule[num]:
-                    if nodule['group_id'] in self.gid and nodule['shape_type'] == 'rectangle':
-                        del self.results_nodule[num][self.results_nodule[num].index(nodule)]
-            self.gid.clear()
+            
+            for slice_id in self.results_nodule.keys():
+                deleted_nodule_ids = []
+                for nodule_i, nodule in enumerate(self.results_nodule[slice_id]):
+                    if nodule['group_id'] in self.deleted_group_ids_after_propagation and nodule['shape_type'] == SHAPETYPE.RECTANGLE:
+                        deleted_nodule_ids.append(nodule_i)
+                        
+                if len(deleted_nodule_ids) != 0:
+                    # Remove from tail to avoid index error
+                    deleted_nodule_ids = reversed(deleted_nodule_ids)
+                    for i in deleted_nodule_ids:
+                        del self.results_nodule[slice_id][i]
+                    
+            self.deleted_group_ids_after_propagation.clear()
 
-        def oneway_propagate(num_slice: int, toward: int, slice_range: List[int]):
-            origin_mask = self.predmask.copy()
-            self.toggle_segment_mode(True)
-            seq_points = self.prev_points
-            while num_slice in slice_range:
-                if self.interactiveModel is not None and len(seq_points) > 0:
-                    try:
-                        # first_click = seq_points[0,:2]
-                        pred = predict(self.interactiveModel,
-                                        self.image_data_dict[num_slice]['data'],
+        def combine_overlapped_nodule(slice_id: int, pred_mask: np.ndarray, is_current_slice: bool = False) -> np.ndarray:
+            """
+            Args:
+                slice_id: int
+                    The slice id of current slice.
+                pred_mask: np.ndarray
+                    The predicted mask of current slice.
+                is_current_slice: bool
+                    Whether the current slice is the slice that the user clicked, if True, we need to update the shapes of canvas.
+            """
+            deleted_polygon_nodule_ids = []
+            
+            deleted_group_ids = set() # only use when is_current_slice is True
+            # Exists some nodules on current slice
+            if slice_id in self.results_nodule.keys():
+                # overlap with exist mask, combine
+                slice_img_shape = self.mImgSize + [3] # (512, 512, 3)
+                
+                for nodule_i, nodule in enumerate(self.results_nodule[slice_id]):
+                    if nodule['shape_type'] == SHAPETYPE.RECTANGLE: # overlaps with the existing rectangle, remove rectangle later
+                        rect = np.array(nodule['rect'], dtype=np.int32) # (x1, y1, x2, y2)
+                        if np.sum(pred_mask[rect[1]:rect[3], rect[0]:rect[2]]) > 0:
+                            self.deleted_group_ids_after_propagation.add(nodule['group_id'])
+                            deleted_group_ids.add(nodule['group_id'])
+                    elif nodule['shape_type'] == SHAPETYPE.POLYGON: # overlaps with the existing polygon, combine them
+                        try:
+                            mask = points_to_mask(nodule['points'], slice_img_shape)
+                            iou = numpy_iou(pred_mask, mask)
+                            if iou > 0.0:
+                                pred_mask = np.logical_or(pred_mask, mask).astype(np.uint8)
+                                deleted_polygon_nodule_ids.append(nodule_i)
+                                deleted_group_ids.add(nodule['group_id'])
+                        except Exception as e:
+                            self.errorMessage("Error Predict", f"{e}")
+                            continue
+            
+            # Because there are some polygons overlap with the predicted mask, we need to remove them and update the polygon and centers
+            if len(deleted_polygon_nodule_ids) != 0:
+                # Remove from tail to avoid index error
+                deleted_polygon_nodule_ids = reversed(deleted_polygon_nodule_ids)
+                for i in deleted_polygon_nodule_ids:
+                    del self.results_nodule[slice_id][i]
+                    
+            # If the current slice is the slice that the user clicked, we need to update the shapes of canvas
+            if is_current_slice:
+                shapes = self.display.shapes()
+                self.display.canvas.shapes = [shape for shape in shapes if shape.group_id not in deleted_group_ids]
+            # Update the polygon and centers
+            polygon, centers = get_polygon((pred_mask.astype(np.uint8) * 255))
+            
+            shapes = []
+            for points, center_point in zip(polygon, centers):
+                if center_point is None:
+                    continue
+                points = np.array(points)
+                shape = self.setDefautShape(label = 'nodule',
+                                            points = points,
+                                            shape_type = SHAPETYPE.POLYGON,
+                                            mask = pred_mask.astype(np.uint8))
+                shapes.append(shape)
+            
+            self.save_label(slice_id, shapes, add_new_shape = True)
+            seq_points = np.array([list(centers[0]) + [1]], dtype = np.int64)
+            return seq_points
+
+        def oneway_propagate(seq_points: np.ndarray, slice_id: int, toward: int, slice_range: List[int]) -> int:
+            previous_pred_mask = self.predmask.copy()
+            seq_points = seq_points.copy()
+            
+            while slice_id in slice_range and len(seq_points) > 0:
+                try:
+                    pred_mask = predict(self.interactiveModel,
+                                        self.image_data_dict[slice_id]['data'],
                                         seq_points, 
                                         self.output_keys, 
-                                        if_sis=True,
-                                        if_cuda=False,
-                                        )
-                        
-                        iou = numpy_iou(origin_mask, pred)
-                        polygon, centers = get_polygon((pred.astype(np.uint8) * 255))
-                        if iou < 0.60 or (polygon == None or centers == None):
-                            return num_slice
-                        if num_slice in self.results_nodule.keys():
-                            # overlap with exist mask, stop propagate
-                            if overlap(pred, self.results_nodule[num_slice]):
-                                return num_slice
-                            # overlap with exist rect, delete rect
-                            del_overlap_rect(pred, self.results_nodule[num_slice])
+                                        if_sis = True,
+                                        if_cuda = False)
+                    original_pred_mask = pred_mask.copy()
+                    iou = numpy_iou(previous_pred_mask, pred_mask)
+                    polygon, centers = get_polygon((pred_mask * 255))
+                    if iou < 0.60 or (polygon == None or centers == None):
+                        return slice_id
+                    
+                    # Update the previous predicted mask for next propagation
+                    previous_pred_mask = original_pred_mask
+                    seq_points = combine_overlapped_nodule(slice_id, pred_mask)
 
-                        origin_mask = pred
-                        shapes = []
-                        replace_shape = False
-                        for ps, cen in zip(polygon, centers):
-                            if cen is None:
-                                continue
-                            ps = np.array(ps)
-                            for shape in shapes:
-                                if shape.shape_type == 'rectangle':
-                                    shape.points.clear()
-                                    shape.shape_type = 'polygon'
-                                    for x, y in ps:
-                                        # Ensure the labels are within the bounds of the image. If not, fix them.
-                                        x, y, snapped = self.display.canvas.snapPointToCanvas(x, y)
-                                        if snapped:
-                                            self.set_dirty()
-                                        shape.addPoint(QPointF(x, y))
-                                        shape.close()
-                                    replace_shape = True
-
-                            if not replace_shape:
-                                shape = self.setDefautShape(label='nodule',
-                                                            points=ps,
-                                                            shape_type='polygon',
-                                                            mask= pred.astype(np.uint8),
-                                                            )
-                                shapes.append(shape)
-                            self.save_label(num_slice, shapes, save_new=not replace_shape)
-                        seq_points = np.array([list(centers[0]) + [1]], dtype=np.int64)
-    
-                    except Exception as e:
-                        self.errorMessage("Error Predict", f"{e}")
-                        return num_slice
-                num_slice += toward
-                self.progress_bar.setValue(self.progress_bar.value()+1)
-        from libraries.interactiveSegment import predict
-
-
-        slice_range = range(1, len(self.image_data_dict))
-        # Propagate to the upper slices
-        upper_num = oneway_propagate(self.current_slice - 1, -1, slice_range)
-        # Propagate to the lower slices
-        lower_num = oneway_propagate(self.current_slice + 1, 1, slice_range)
+                except Exception as e:
+                    self.errorMessage("Error Predict", f"{e}")
+                    return slice_id
+                slice_id += toward
+                self.progress_bar.setValue(self.progress_bar.value() + 1)
+            return slice_id
         
-        remove_old_rect()
+        from libraries.interactiveSegment import predict
+        # Check whether the interactive model exists
+        if self.interactiveModel is None:
+            self.errorMessage("InteractiveModel is None")
+            return
+        self.toggle_segment_mode(True)
+        
+        slice_range = range(1, len(self.image_data_dict))
+        
+        # Combine the predicted mask with the existing polygons
+        combine_overlapped_nodule(self.current_slice, self.predmask.copy(), is_current_slice = True)
+        # Propagate to the upper slices
+        upper_num = oneway_propagate(seq_points, self.current_slice - 1, -1, slice_range)
+        # Propagate to the lower slices
+        lower_num = oneway_propagate(seq_points, self.current_slice + 1, 1, slice_range)
+        
+        remove_old_rects()
         self.progress_bar.setValue(100)
         self.update_analysis_table()
         self.inforMessage("Propagate", "Propagate Finished")
