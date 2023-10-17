@@ -4,7 +4,6 @@ import time
 import cv2
 import argparse
 import datetime
-from pprint import PrettyPrinter
 from collections import defaultdict
 from typing import List, Dict, Tuple, Union, Optional, Any
 # from grabcut_dialog import grabcut_dialog
@@ -959,7 +958,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def undo_shape_edit(self):
         if not self.undoSegment_button.isEnabled():
-            print('not now')
             return
         self.display.canvas.restoreShape()
         self.label_list.clear()
@@ -971,14 +969,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def toggle_drawing_sensitive(self, drawing=True):
         """In the middle of drawing, toggling between modes should be disabled."""
-        print("toggle_drawing_sensitive: ", drawing)
         self.actions.editMode.setEnabled(not drawing)
         self.actions.createMode.setEnabled(drawing)
         self.actions.viewMode.setEnabled(True)
         self.edit_button.setEnabled(not drawing)
         if not drawing:
             # Cancel creation.
-            print('Cancel creation.')
             self.display.canvas.setEditing(True)
             self.display.canvas.restoreCursor()
 
@@ -1200,7 +1196,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             # self.label_list.scrollToItem(item)
         self._noSelectionSlot = False
         n_selected = len(selected_shapes)
-        # print(n_selected)
         self.actions.delete.setEnabled(n_selected)
         if self.dirty:
             self.actions.update.setEnabled(True)
@@ -1208,7 +1203,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def label_item_changed(self, item):
         shape = self.items_to_shapes[item]
         label = item.text()
-        # print("label_item_changed", label)
         # checked = item.checkState() == Qt.Checked
         f = item.font()
         # f.setStrikeOut(not checked)
@@ -1273,7 +1267,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
         # item.setCheckState(Qt.Checked)
         # item.setBackground(generate_color_by_text(shape.label))
-        # print("label checked: ", shape.checked)
         checked = shape.checked
         f = item.font()
         f.setStrikeOut(not checked)
@@ -1289,7 +1282,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.items_to_shapes[item] = shape
             self.shapes_to_items[shape] = item
             self.label_list.addItem(item)
-        # print(shape.category)
         for action in self.actions.onShapesPresent:
             if action is not None:
                 action.setEnabled(True)
@@ -1299,7 +1291,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def remove_label(self, shape):
         if shape is None or len(shape) == 0:
-            # print('rm empty label')
             return
         item = self.shapes_to_items[shape]
         del self.shapes_to_items[shape]
@@ -1564,7 +1555,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         shape = self.items_to_shapes[item]
 
         self.display.canvas.deleteShape(shape)
-        # print("after delete: ",len(self.display.shapes()))
         if shape.checked == False:
             return
         self.remove_label(shape)
@@ -1658,9 +1648,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             objThreading.started.connect(preprocessing.processing)
             objThreading.finished.connect(loading.stopAnimation)
             objThreading.start()
-            # print(objThreading.isRunning())
             while objThreading.isRunning():
-                # print(objThreading.isRunning())
                 self.setEnabled(False)
                 QApplication.processEvents()
             self.patient_infor = preprocessing.get_patient_infor()
@@ -1997,8 +1985,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     
                     Log = glob.glob(os.path.join(os.path.join(path, 'log'), "log*.log"))
 
-                    if len(Log)>0:
-                        print("co ton tai log")
+                    if len(Log) > 0:
                         self._get_log_result_nodule(pck.load_dict(Log[-1]))
                     ########## modified by Ben ##########
                     else:
@@ -2371,11 +2358,16 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         #         return True
         #     else :
         #         return False
-        def overlap(pred, rect) -> bool:
+        def overlap_with_rectangle(pred, rect) -> bool:
             pred_mask = pred[rect[1]:rect[3],rect[0]:rect[2]]
             if pred_mask.sum() > 0:
                 return True
             return False 
+        def overlap_with_polygon(pred_mask, mask) -> bool:
+            if np.logical_and(pred_mask, mask).sum() > 0:
+                return True
+            return False
+        
         self.display.canvas.setViewing()
         self.zoomDisplay.canvas.setViewing()
         polygon, centers = get_polygon((self.predmask.astype(np.uint8) * 255))
@@ -2383,36 +2375,39 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.errorMessage("Error Segmentation", f"None to save")
         else:
             shapes = self.display.shapes()
-            is_shape_replaced = False
-            
+            deleted_shape_ids = []
+            pred_mask = self.predmask.copy()
             # Check if the segmentation in current slice overlap with the previous segmentation
             for points, center_point in zip(polygon, centers):
                 if center_point is None: 
                     continue
                 points = np.array(points)
-                for shape in shapes:
-                    # there are some rectangles shape overlap with the segmentation mask, then replace it with polygon
-                    if shape.shape_type == SHAPETYPE.RECTANGLE and overlap(self.predmask, np.array(shape.rect, dtype=np.int32)):
-                        shape.points.clear()
-                        shape.shape_type = SHAPETYPE.POLYGON
-                        for x, y in points:
-                            # Ensure the labels are within the bounds of the image. If not, fix them.
-                            x, y, snapped = self.display.canvas.snapPointToCanvas(x, y)
-                            if snapped:
-                                self.set_dirty()
-                            shape.addPoint(QPointF(x, y))
-                            shape.close()
-                        is_shape_replaced = True
+                for shape_i, shape in enumerate(shapes):
+                    if shape.shape_type == SHAPETYPE.RECTANGLE and overlap_with_rectangle(self.predmask, np.array(shape.rect, dtype=np.int32)):
+                        deleted_shape_ids.append(shape_i)
                         self.deleted_group_ids_after_propagation.add(shape.group_id)
-
-                # If there is no overlap, create a new polygon shape with points from the segmentation mask
-                if not is_shape_replaced:
-                    shape = self.setDefautShape(label = 'nodule',
-                                                points = points,
-                                                shape_type = SHAPETYPE.POLYGON,
-                                                mask = self.predmask.astype(np.uint8)
-                                                )
-                    shapes.append(shape)
+                    elif shape.shape_type == SHAPETYPE.POLYGON:
+                        polygon_points = []
+                        for point in shape.points:
+                            polygon_points.append([point.x(), point.y()])
+                        polygon_mask = points_to_mask(polygon_points, self.mImgSize + [3])
+                        if overlap_with_polygon(pred_mask, polygon_mask):
+                            # Merge the two masks
+                            pred_mask = np.logical_or(pred_mask, polygon_mask).astype(np.uint8)
+                            deleted_shape_ids.append(shape_i)
+                
+                # Delete the overlapped shapes
+                deleted_shape_ids = reversed(sorted(deleted_shape_ids))
+                for shape_i in deleted_shape_ids:
+                    del shapes[shape_i]
+                
+                polygon, centers = get_polygon(pred_mask.astype(np.uint8) * 255)
+                # Add the new polygon shape to the canvas
+                shape = self.setDefautShape(label = 'nodule',
+                                            points = polygon[0],
+                                            shape_type = SHAPETYPE.POLYGON,
+                                            mask = pred_mask.astype(np.uint8))
+                shapes.append(shape)
                     
                 center_point = list(centers[0])
                 center_point.append(1)
@@ -2421,11 +2416,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             
             # Use the points on current slice to propagate the segmentation to the neighboring slices
             self.propagate(seq_points)
-            
             self.load_file(self.image_data_dict[self.current_slice]['data'], 
                             self.image_data_dict[self.current_slice]['path'],
                             self.image_data_dict[self.current_slice]['mode'])
-            self.loadShapes(shapes, replace=True)
+            # print('load_shape')
+            # self.loadShapes(shapes, replace=True)
         self.toggle_segment_mode(False)
         self.confirm.setEnabled(True)
         
@@ -2519,6 +2514,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             """
             deleted_polygon_nodule_ids = []
             
+            polygon, centers = get_polygon((pred_mask.astype(np.uint8) * 255))
             deleted_group_ids = set() # only use when is_current_slice is True
             # Exists some nodules on current slice
             if slice_id in self.results_nodule.keys():
@@ -2549,13 +2545,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 deleted_polygon_nodule_ids = reversed(deleted_polygon_nodule_ids)
                 for i in deleted_polygon_nodule_ids:
                     del self.results_nodule[slice_id][i]
-                    
-            # If the current slice is the slice that the user clicked, we need to update the shapes of canvas
-            if is_current_slice:
-                shapes = self.display.shapes()
-                self.display.canvas.shapes = [shape for shape in shapes if shape.group_id not in deleted_group_ids]
-            # Update the polygon and centers
-            polygon, centers = get_polygon((pred_mask.astype(np.uint8) * 255))
+                # Update the polygon and centers
+                polygon, centers = get_polygon((pred_mask.astype(np.uint8) * 255))
             
             shapes = []
             for points, center_point in zip(polygon, centers):
@@ -2567,7 +2558,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                                             shape_type = SHAPETYPE.POLYGON,
                                             mask = pred_mask.astype(np.uint8))
                 shapes.append(shape)
-            
+
             self.save_label(slice_id, shapes, add_new_shape = True)
             seq_points = np.array([list(centers[0]) + [1]], dtype = np.int64)
             return seq_points
@@ -2611,7 +2602,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         slice_range = range(1, len(self.image_data_dict))
         
         # Combine the predicted mask with the existing polygons
-        combine_overlapped_nodule(self.current_slice, self.predmask.copy(), is_current_slice = True)
         # Propagate to the upper slices
         upper_num = oneway_propagate(seq_points, self.current_slice - 1, -1, slice_range)
         # Propagate to the lower slices

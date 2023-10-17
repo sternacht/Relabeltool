@@ -216,7 +216,7 @@ class NoduleComboBox(QComboBox):
             color = QColor(*id_color_nodule[2])
         elif self.currentText() == self.comboListDefault[3]:
             color = QColor(*id_color_nodule[3])
-        print(self.currentText(), color.name())
+        # print(self.currentText(), color.name())
         qss = """QComboBox{color : #000000; background-color : %s;}""" % (color.name(),)
         self.setStyleSheet(qss)
         self.commitColor.emit(color.name(), self.currentText())

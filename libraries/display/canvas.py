@@ -436,7 +436,7 @@ class Canvas(QtWidgets.QWidget):
             if pos.y() < 0: py = 0
             elif pos.y() > self.pixmap.height(): py = self.pixmap.height()
             else: py = pos.y()
-            self.currentPostion.emit(px, py)
+            self.currentPostion.emit(int(px), int(py))
 
             if self.viewing():
                 if pos.x() < 0: self.zoomX = 0
@@ -763,7 +763,7 @@ class Canvas(QtWidgets.QWidget):
         aw, ah = area.width(), area.height()
         x = (aw - w) / (2 * s) if aw > w else 0
         y = (ah - h) / (2 * s) if ah > h else 0
-        return QtCore.QPoint(x, y)
+        return QtCore.QPoint(int(x), int(y))
 
     def outOfPixmap(self, p):
         w, h = self.pixmap.width(), self.pixmap.height()

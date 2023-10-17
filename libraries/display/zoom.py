@@ -102,7 +102,7 @@ class ZoomDisplay(QtWidgets.QWidget):
         
     def setScroll(self, orientation, value):
         if value is not None:
-            self.scroll_bars[orientation].setValue(value)
+            self.scroll_bars[orientation].setValue(int(value))
 
     def set_zoom(self, value):
         self.zoomWidget.setValue(value)
