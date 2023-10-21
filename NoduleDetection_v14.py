@@ -4,11 +4,11 @@ import time
 import cv2
 import argparse
 import datetime
-from pprint import PrettyPrinter
 from collections import defaultdict
 from typing import List, Dict, Tuple, Union, Optional, Any
 # from grabcut_dialog import grabcut_dialog
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 try: 
     from PyQt5.QtGui import *
     from PyQt5.QtWidgets import *
@@ -28,6 +28,43 @@ from libraries import *
 import glob
 
 __appname__ = "2D Nodule Detection & Manual Labeling (RoboticLAB NCKU)"
+
+class SHAPETYPE:
+    POLYGON = 'polygon'
+    RECTANGLE = 'rectangle'
+
+def points_to_mask(points: List[Tuple[int, int]], shape: Tuple[int, int, int]) -> np.ndarray:
+    """Convert a list of points to a binary mask.
+    
+    Args:
+        points (List[Tuple[int, int]]): list of points
+        shape (Tuple[int, int, int]): shape of the image
+    
+    Return:
+        A binary mask of shape (height, width) with dtype np.uint8
+    """
+    if len(shape) != 3:
+        raise ValueError("shape must be a tuple of 3 elements")
+    
+    points = np.array(points, dtype = np.int32)
+    
+    mask = np.zeros(shape, dtype=np.uint8)
+    mask = cv2.fillConvexPoly(mask.copy(),
+                            points = points,
+                            color = (255,255,255))
+    mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+    return mask
+
+def get_timestamp(is_filename: bool = False) -> str:
+    tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
+    tw_time = datetime.datetime.now(tw_zone)
+    # tw_time = tw_time + datetime.timedelta(minutes=3, seconds=5) # For CYCH
+    if is_filename:
+        timestamp = tw_time.strftime(f"%y%m%d_%H%M%S")
+    else:
+        timestamp = tw_time.strftime("%Y/%m/%d %H:%M:%S")
+    return timestamp
+
 
 def read(filename, default=None):
     try:
@@ -236,8 +273,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.zoom_y = None
         self.point_size = 4
 
-        # store the nodule gid need to adapt after propagation
-        self.gid = set()
+        # store the nodule group id need to adapt after propagation
+        self.deleted_group_ids_after_propagation = set()
         # Mode default setting
         self.s = [] # keep total nodule on cur_slice for benign hidden mode
         self.edit_on = 0
@@ -284,13 +321,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         title_layout = self.setTitleLabel()
         windowLayout.addLayout(title_layout)
 
-        
         # Group refresh data
         self.refresh_button = QToolButton(self)
         self.refresh_button.setIcon(new_icon('refresh.png'))
         self.refresh_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.refresh_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # self.load_button.setStyleSheet(const.TEXT_FONT_MEDIUM )
         
         # Search
         self.query = QLineEdit(self)
@@ -302,27 +337,22 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         search_lay.addWidget(self.query, 1)
         search_lay.addWidget(self.refresh_button, 0)
 
-        #Table File Widget
+        # Table File Widget
         self.tableFile = TableWidget_List(header=None)
         self.tableFile.setMaximumHeight(int(self.height()*0.25))
         self.tableFile.setMinimumHeight(int(self.height()*0.20))
         self.group_box_select = QGroupBox("1. Select a Patient")
         
         group_layout_select = QVBoxLayout(self.group_box_select)
-        # group_layout_select.addWidget(self.load_button)
-        # group_layout_select.addWidget(self.query)
         group_layout_select.addLayout(search_lay)
         group_layout_select.addWidget(self.tableFile)
         # Group show patient information
         self.group_box_infor = QGroupBox("2. Patient Information")
-        # group_box_infor.setStyleSheet(const.TEXT_COLOR_DEFAULT + const.TEXT_FONT_LARGE)
         group_box_infor_layout = QHBoxLayout(self.group_box_infor)
         #List File Widget
         self.refresh()
         self.listFileWidget = PatientInforTable()
-        # self.listFileWidget.setStyleSheet(const.TEXT_COLOR_DEFAULT + const.TEXT_FONT_MEDIUM)
         group_box_infor_layout.addWidget(self.listFileWidget)
-        # self.listFileWidget.setFixedWidth(int(self.group_box_select.width()*0.48))
         self.group_box_infor.setFixedWidth(int(self.width()*0.25)) # modified by Ben
 
         # Inference Button
@@ -334,24 +364,21 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # Log Button
         self.log_button = QPushButton("History Log")
         self.log_button.setEnabled(False)
-        # self.log_button.setStyleSheet(const.TEXT_FONT_MEDIUM)
 
         self.inference_label = QLabel()
         self.inference_label.setFont(QFont("Times New Roman", 18))
         self.inference_label.setVisible(False)
-
 
         group_box_inference = QGroupBox("3. Load History Log")
         group_layout_inference = QVBoxLayout(group_box_inference)
         group_layout_inference.addWidget(self.inference_label,0)
         gli = QHBoxLayout()
         gli.setContentsMargins(0,0,0,0)
-        # gli.addWidget(self.inference_button)
         gli.addWidget(self.log_button)
         group_layout_inference.addLayout(gli, 1)
         
 
-        #Table Recall Precision Widget
+        # Table Recall Precision Widget
         self.table_analysis = AnalysisTable(header=None)
         self.table_analysis.setContentsMargins(0,0,0,0)
         self.table_analysis.setEnabled(False)
@@ -360,26 +387,21 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # self.table_analysis.setMinimumWidth(QApplication.desktop().window().width()*8//20)
         # self.table_analysis.setMaximumSize(QApplication.desktop().window().width()//3, QApplication.desktop().window().height()*0.25)
 
-        
         self.add_button = tool_button()
         self.add_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.add_button.setIcon(new_icon('plus'))
         self.add_button.setEnabled(False)
-        # self.add_button.setSizePolicy(toolbuttonSizePolicy)
 
         self.edit_button = tool_button()
         self.edit_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.edit_button.setIcon(new_icon('editing'))
         self.edit_button.setEnabled(False)
-        # self.edit_button.setSizePolicy(toolbuttonSizePolicy)
 
         self.delete_button = tool_button()
         self.delete_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        # self.delete_button.setSizePolicy(toolbuttonSizePolicy)
 
         self.update_button = tool_button()
         self.update_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        # self.update_button.setSizePolicy(toolbuttonSizePolicy)
 
         self.view_button = tool_button()
         self.view_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
@@ -393,7 +415,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         tool_btns_layout.addWidget(self.update_button)
         tool_btns_layout.addWidget(self.view_button)
 
-        ##Label List
+        ## Label List
         self.label_list = QListWidget()
 
         listview_layout = QVBoxLayout()
@@ -417,9 +439,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         group_layout_lung_nodule.addWidget(self.table_analysis, 2)
         group_layout_lung_nodule.addWidget(self.edit_slice,0)
 
-        # group_layout_lung_nodule.addWidget(self.pathology_text, 1)
-        
-
         self.display = Display()
         self.display.wheel_down.connect(self.open_next_image)
         self.display.wheel_up.connect(self.open_prev_image)
@@ -429,13 +448,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.display.edit_shape.connect(lambda shapes: self.zoomDisplay.update_shape(shapes))
         self.display.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
         self.display.canvas.pointSegment.connect(self.segmentation)
-        ##Slider 
-
+        
+        ## Slider 
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setObjectName('slider')
 
-
-        #Control button: preview
+        # Control button: preview
         toolbuttonSizePolicy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
         self.prevButton = tool_button()
@@ -450,7 +468,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.nextButton.setSizePolicy(toolbuttonSizePolicy)
         self.nextButton.setFixedHeight(21)
         
-
         control_layout = QHBoxLayout()
         control_layout.addWidget(self.prevButton)
         control_layout.addWidget(self.slider, 1)
@@ -475,11 +492,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.action_layout.addWidget(self.group_box_lung_nodule, 5, 0, 1, 2)
         self.action_layout.addWidget(self.group_plain_text, 5, 2, 1, 5)
         self.action_layout.addLayout(navigateLayout, 0, 6, 5, 1)
-        # self.action_layout.addLayout(mask_layout, 5, 7, 1, 1)
         self.action_layout.setColumnStretch(1, 1)
-        # self.action_layout.setColumnStretch(0, 2)
         self.action_layout.setColumnStretch(2, 2)
-        # self.action_layout.setColumnStretch(3, 1)
 
         self.label_coordinates = QLabel("")
         self.label_coordinates.setStyleSheet(const.TEXT_COLOR_DEFAULT)
@@ -497,13 +511,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.group_box_lung_nodule.setTitle(_translate("MainWindow", "Total Lung Nodules"))
 
     def resizeEvent(self, event) -> None:
-        
-        # self.edit_slice.setFixedWidth(int(self.group_box_lung_nodule.width()*0.25))
         self.group_box_lung_nodule.setFixedWidth(int(self.width()*0.48))
         self.table_analysis.setMinimumHeight(int(self.height()*0.15))
         self.tableFile.setFixedHeight(int(self.height()*0.20))
         self.zoomDisplay.setMaximumWidth(int(self.zoomDisplay.height()*1.8))
-        # self.listFileWidget.setFixedWidth(int(self.group_box_select.width()*0.48))
         win_width = self.width()
         self.group_box_infor.setFixedWidth(int(win_width*0.25))
         if win_width > 1500 and win_width <=1920:
@@ -660,14 +671,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     
         self.prevButton.setDefaultAction(self.actions.previous)
         self.nextButton.setDefaultAction(self.actions.next)
-        # self.add_button.setDefaultAction(create_mode)
-        # self.edit_button.setDefaultAction(edit_mode)
         self.delete_button.setDefaultAction(self.actions.delete)
         self.menus.file.aboutToShow.connect(self.update_file_menu)
         self.update_button.setDefaultAction(self.actions.update)
-        # self.load_button.setDefaultAction(open_image_folder)
-        # self.load_button.setMenu(open_menu)
-        # self.load_button.setPopupMode(QToolButton.MenuButtonPopup)
         
     def build_ui(self):
         "Create connections in User interface"
@@ -757,8 +763,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             sort_reverse = getattr(self.tableFile, "sort_reverse", False)
             self.tableFile.sortByColumn(sort_column, Qt.SortOrder.DescendingOrder if sort_reverse else Qt.SortOrder.AscendingOrder)
         # Update Last Modified
-        tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
-        self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(datetime.datetime.now(tw_zone).strftime("%Y/%m/%d %H:%M:%S")))
+        timestamp = get_timestamp()
+        self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(timestamp))
     def load_recent(self, path):
         if self.may_continue():
             if os.path.isfile(path):
@@ -876,8 +882,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         # Even if we autosave the file, we keep the ability to undo
         self.actions.undo.setEnabled(self.display.canvas.isShapeRestorable)
-
-
+        
         # if self._config["auto_save"] or self.actions.saveAuto.isChecked():
         #     label_file = osp.splitext(self.imagePath)[0] + ".json"
         #     if self.output_dir:
@@ -920,17 +925,15 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.label_coordinates.clear()
         
         self.zoomDisplay.image = QImage()
-        #Advance
+        # Advance
         self.update_table = False
         self.actions.delete.setEnabled(False)
-        # self.actions.update.setEnabled(False)
 
     def update_recent_file(self):
         self.recent_files = [value.get('Path', "") for value in self.history]
 
     def undo_shape_edit(self):
         if not self.undoSegment_button.isEnabled():
-            print('not now')
             return
         self.display.canvas.restoreShape()
         self.label_list.clear()
@@ -942,14 +945,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def toggle_drawing_sensitive(self, drawing=True):
         """In the middle of drawing, toggling between modes should be disabled."""
-        print("toggle_drawing_sensitive: ", drawing)
         self.actions.editMode.setEnabled(not drawing)
         self.actions.createMode.setEnabled(drawing)
         self.actions.viewMode.setEnabled(True)
         self.edit_button.setEnabled(not drawing)
         if not drawing:
             # Cancel creation.
-            print('Cancel creation.')
             self.display.canvas.setEditing(True)
             self.display.canvas.restoreCursor()
 
@@ -970,70 +971,36 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.actions.viewMode.setEnabled(True)
         self.add_button.setEnabled(not edit)
         self.edit_button.setEnabled(edit)
-        if edit:
+        if edit == True:
             self.actions.createMode.setEnabled(edit)
             self.actions.createPolyMode.setEnabled(True)
-            # self.actions.createRectangleMode.setEnabled(True)
-            # self.actions.createCircleMode.setEnabled(True)
-            # self.actions.createLineMode.setEnabled(True)
             self.actions.createPointMode.setEnabled(True)
-            # self.actions.createLineStripMode.setEnabled(True)
-
         else:
+            self.actions.update.setEnabled(True)
             if createMode == "polygon":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(False)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "rectangle":
                 self.actions.createMode.setEnabled(False)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(False)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "line":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(False)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "point":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(False)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "circle":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(False)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "linestrip":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(False)
-                # self.edit_button.setEnabled(not edit)
             else:
                 raise ValueError("Unsupported createMode: %s" % createMode)
         self.actions.editMode.setEnabled(not edit)
@@ -1171,7 +1138,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             # self.label_list.scrollToItem(item)
         self._noSelectionSlot = False
         n_selected = len(selected_shapes)
-        # print(n_selected)
         self.actions.delete.setEnabled(n_selected)
         if self.dirty:
             self.actions.update.setEnabled(True)
@@ -1179,7 +1145,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def label_item_changed(self, item):
         shape = self.items_to_shapes[item]
         label = item.text()
-        # print("label_item_changed", label)
         # checked = item.checkState() == Qt.Checked
         f = item.font()
         # f.setStrikeOut(not checked)
@@ -1244,7 +1209,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
         # item.setCheckState(Qt.Checked)
         # item.setBackground(generate_color_by_text(shape.label))
-        # print("label checked: ", shape.checked)
         checked = shape.checked
         f = item.font()
         f.setStrikeOut(not checked)
@@ -1260,7 +1224,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.items_to_shapes[item] = shape
             self.shapes_to_items[shape] = item
             self.label_list.addItem(item)
-        # print(shape.category)
         for action in self.actions.onShapesPresent:
             if action is not None:
                 action.setEnabled(True)
@@ -1270,7 +1233,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def remove_label(self, shape):
         if shape is None or len(shape) == 0:
-            # print('rm empty label')
             return
         item = self.shapes_to_items[shape]
         del self.shapes_to_items[shape]
@@ -1287,14 +1249,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             return (x1,y1,x2,y2)
 
         shape = Shape(label= label,
-                    shape_type= shape_type ,
-                    group_id= group_id ,
-                    category= category , 
-                    conf= conf ,
-                    checked= checked ,
-                    rect= rect ,
-                    mask= mask ,
-                    point_size= self.point_size)
+                    shape_type = shape_type,
+                    group_id = group_id,
+                    category = category, 
+                    conf = conf,
+                    checked = checked,
+                    rect = rect,
+                    mask = mask,
+                    point_size = self.point_size)
         for x, y in points:
             # Ensure the labels are within the bounds of the image. If not, fix them.
             x, y, snapped = self.display.canvas.snapPointToCanvas(x, y)
@@ -1367,32 +1329,48 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.display.canvas.setAllShapeVisible(False)
             self.zoomDisplay.canvas.setAllShapeVisible(False)
 
-    def save_label(self, current_slice, display_shapes, save_new=False):
-        # current_slice = self.current_slice
+    def save_label(self, current_slice: int, display_shapes: List[Shape], add_new_shape = False):
+        """
+        Args:
+            current_slice: int
+                current slice number
+            display_shapes: List[Shape]
+                all shapes in current slice
+            add_new_shape: bool
+                only use in propagate, if cur_slice has nodule already, append new shape to it.
+        """
         shapes = []
         nodule_id = []
-        # for shape in self.display.shapes():
+        
         for shape in display_shapes:
             if shape.shape_type == 'point' or shape.shape_type == 'line':
                 continue
             shapes.append(shape.shape2dict())
             nodule_id.append(shape.group_id)
+        
+        # Hide the benign nodules
         if self.benign_hidden.isChecked():
             for shape in self.s:
                 if shape.category == 0 and shape.group_id not in nodule_id:
                     if shape.shape_type == 'point' or shape.shape_type == 'line':
                         continue
                     shapes.append(shape.shape2dict())
-        if len(shapes) >0:
+        
+        if len(shapes) > 0:
             if self.results_nodule is None or len(self.results_nodule) <= 0:
                 self.results_nodule = {}
-            if save_new and current_slice in self.results_nodule.keys():    # only occur in propagate.
-                self.results_nodule[current_slice].append(shapes[0])        # if cur_slice has nodule 
-            else:                                                           # already, use append, else
-                self.results_nodule[current_slice] = shapes                 # use assignment.
-        else:
-            pass
-
+            
+            if current_slice not in self.results_nodule:
+                self.results_nodule[current_slice] = []
+                
+            if not add_new_shape:
+                self.results_nodule[current_slice] = shapes
+            else: # only occur in propagate.
+                if current_slice not in self.results_nodule.keys():
+                    self.results_nodule[current_slice] = [shapes[0]]
+                else:
+                    self.results_nodule[current_slice].append(shapes[0])
+                
     def save_all_labels(self):
         def saved_notify():
             ok = QMessageBox.Ok
@@ -1405,18 +1383,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.results_nodule = {}
         if self.label_file is None:
             self.label_file = Label_Save(self.save_dir)
-        t = time.localtime()
-        timestamp = time.strftime("%y%m%d_%H%M%S", t)
-        # text, ok = QInputDialog().getText(self, 'saving log', '請輸入存檔檔名', QLineEdit.Normal, text)
-        # if not ok:
-        #     return
+            
+        # Update Last Modified
+        timestamp = get_timestamp(is_filename=True)
         file_name = f'log_{timestamp}_{self.user_name}'
         self.label_file.save_label_pickle(file_name, self.results_nodule)
         self.save_status = False
         saved_notify()
         self.confirm.setEnabled(True)
-        # else:
-        #     self.errorMessage("Error Save", "{}".format("Nothing to save"))
 
     def save_mask(self):
         def saved_notify():
@@ -1519,7 +1493,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         shape = self.items_to_shapes[item]
 
         self.display.canvas.deleteShape(shape)
-        # print("after delete: ",len(self.display.shapes()))
         if shape.checked == False:
             return
         self.remove_label(shape)
@@ -1613,9 +1586,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             objThreading.started.connect(preprocessing.processing)
             objThreading.finished.connect(loading.stopAnimation)
             objThreading.start()
-            # print(objThreading.isRunning())
             while objThreading.isRunning():
-                # print(objThreading.isRunning())
                 self.setEnabled(False)
                 QApplication.processEvents()
             self.patient_infor = preprocessing.get_patient_infor()
@@ -1952,8 +1923,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     
                     Log = glob.glob(os.path.join(os.path.join(path, 'log'), "log*.log"))
 
-                    if len(Log)>0:
-                        print("co ton tai log")
+                    if len(Log) > 0:
                         self._get_log_result_nodule(pck.load_dict(Log[-1]))
                     ########## modified by Ben ##########
                     else:
@@ -2023,7 +1993,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             patient_ID = self.patient_infor['PatientID']
             results_nodule = sorted(self.results_nodule.items())
             dict_patient = {patient_ID : dict(results_nodule)}
-            patient_tracking = olap.colect3d(dict_patient)
+            patient_tracking = olap.collect3d(dict_patient)
             self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
             self.results_nodule = list(new_dict_patient.values())[0]
             self.table_analysis.clear()
@@ -2041,7 +2011,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 self.load_file(self.image_data_dict[self.current_slice]['data'], 
                                self.image_data_dict[self.current_slice]['path'],
                                self.image_data_dict[self.current_slice]['mode'])
-        pass
 
     def delete_item_analysis_table(self, id_no:int, list_remove:list, list_analysis:list):
         if len(list_remove) > 0:
@@ -2100,9 +2069,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     ########## modified by Ben ##########
     def getNoduleAnalysis(self, pathtxt):
-        # with open(pathtxt, 'r') as f:
-        #     if len(f.readlines()) <= 1:
-        #         pathtxt = os.path.join(self.dirname, 'inference.txt')
         if pathtxt and os.path.exists(pathtxt):
         # dict_patient, dict_file = olap.merge_overlapping(olap.readtxt(pathtxt))
         
@@ -2110,7 +2076,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             # if len(list(dict_patient.values())[0]) <= 1:
             #     pathtxt = os.path.join(self.dirname, "inference.txt")
             #     dict_patient, dict_file = olap.follow_patient(olap.readtxt(pathtxt))
-            patient_tracking = olap.colect3d(dict_patient)
+            patient_tracking = olap.collect3d(dict_patient)
             self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
             if new_dict_patient:
                 self.results_nodule = list(new_dict_patient.values())[0]
@@ -2163,7 +2129,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 # if len(list(dict_patient.values())[0]) <= 1:
                 #     pathtxt = os.path.join(self.dirname, "inference.txt")
                 #     dict_patient, dict_file = olap.follow_patient(olap.readtxt(pathtxt))
-                patient_tracking = olap.colect3d(dict_patient)
+                patient_tracking = olap.collect3d(dict_patient)
                 self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
                 if new_dict_patient:
                     self.results_nodule = list(new_dict_patient.values())[0]
@@ -2285,7 +2251,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     point = (x, y, 0)
                 seq_points.append(point)
         seq_points = np.array(seq_points, dtype = np.int64) # shape = (n, 3)
-        self.prev_points = seq_points.copy()
         
         if self.interactiveModel is not None and len(seq_points) > 0:
             try:
@@ -2327,11 +2292,16 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         #         return True
         #     else :
         #         return False
-        def overlap(pred, rect):
+        def overlap_with_rectangle(pred, rect) -> bool:
             pred_mask = pred[rect[1]:rect[3],rect[0]:rect[2]]
             if pred_mask.sum() > 0:
                 return True
             return False 
+        def overlap_with_polygon(pred_mask, mask) -> bool:
+            if np.logical_and(pred_mask, mask).sum() > 0:
+                return True
+            return False
+        
         self.display.canvas.setViewing()
         self.zoomDisplay.canvas.setViewing()
         polygon, centers = get_polygon((self.predmask.astype(np.uint8) * 255))
@@ -2339,41 +2309,52 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.errorMessage("Error Segmentation", f"None to save")
         else:
             shapes = self.display.shapes()
-            # shapes = [shape for shape in shapes if shape.shape_type != 'point' and shape.shape_type != 'line']
-            replace_shape = False
-            for ps, cen in zip(polygon, centers):
-                if cen is None: continue
-                ps = np.array(ps)
-                for shape in shapes:
-                    if shape.shape_type == 'rectangle' and overlap(self.predmask, np.array(shape.rect, dtype=np.int32)):
-                        shape.points.clear()
-                        shape.shape_type = 'polygon'
-                        for x, y in ps:
-                            # Ensure the labels are within the bounds of the image. If not, fix them.
-                            x, y, snapped = self.display.canvas.snapPointToCanvas(x, y)
-                            if snapped:
-                                self.set_dirty()
-                            shape.addPoint(QPointF(x, y))
-                            shape.close()
-                        replace_shape = True
-                        self.gid.add(shape.group_id)
-
-                if not replace_shape:
-
-                    shape = self.setDefautShape(label='nodule',
-                                                points=ps,
-                                                shape_type='polygon',
-                                                mask= self.predmask.astype(np.uint8)
-                                                )
-                    shapes.append(shape)
-                cen = list(centers[0])
-                cen.append(1)
-                self.prev_points = np.array([cen], dtype=np.int64)
-            self.propagate()
+            deleted_shape_ids = []
+            pred_mask = self.predmask.copy()
+            # Check if the segmentation in current slice overlap with the previous segmentation
+            for points, center_point in zip(polygon, centers):
+                if center_point is None: 
+                    continue
+                points = np.array(points)
+                for shape_i, shape in enumerate(shapes):
+                    if shape.shape_type == SHAPETYPE.RECTANGLE and overlap_with_rectangle(self.predmask, np.array(shape.rect, dtype=np.int32)):
+                        deleted_shape_ids.append(shape_i)
+                        self.deleted_group_ids_after_propagation.add(shape.group_id)
+                    elif shape.shape_type == SHAPETYPE.POLYGON:
+                        polygon_points = []
+                        for point in shape.points:
+                            polygon_points.append([point.x(), point.y()])
+                        polygon_mask = points_to_mask(polygon_points, self.mImgSize + [3])
+                        if overlap_with_polygon(pred_mask, polygon_mask):
+                            # Merge the two masks
+                            pred_mask = np.logical_or(pred_mask, polygon_mask).astype(np.uint8)
+                            deleted_shape_ids.append(shape_i)
+                
+                # Delete the overlapped shapes
+                deleted_shape_ids = reversed(sorted(deleted_shape_ids))
+                for shape_i in deleted_shape_ids:
+                    del shapes[shape_i]
+                
+                polygon, centers = get_polygon(pred_mask.astype(np.uint8) * 255)
+                # Add the new polygon shape to the canvas
+                shape = self.setDefautShape(label = 'nodule',
+                                            points = polygon[0],
+                                            shape_type = SHAPETYPE.POLYGON,
+                                            mask = pred_mask.astype(np.uint8))
+                shapes.append(shape)
+                    
+                center_point = list(centers[0])
+                center_point.append(1)
+                
+                seq_points = np.array([center_point], dtype=np.int64)
+            
+            # Use the points on current slice to propagate the segmentation to the neighboring slices
+            self.propagate(seq_points)
             self.load_file(self.image_data_dict[self.current_slice]['data'], 
                             self.image_data_dict[self.current_slice]['path'],
                             self.image_data_dict[self.current_slice]['mode'])
-            self.loadShapes(shapes, replace=True)
+            # print('load_shape')
+            # self.loadShapes(shapes, replace=True)
         self.toggle_segment_mode(False)
         self.confirm.setEnabled(True)
         
@@ -2418,130 +2399,149 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.toggle_view_mode(True)
             self.update()
 
-    def propagate(self):
+    def propagate(self, seq_points: np.ndarray):
         """Propagate the segmentation to the neighboring slices.
+        
+        Args:
+            seq_points: The points of polygon on current slice.
         """
-        def numpy_iou(y_true: np.ndarray, y_pred: np.ndarray):
+        def numpy_iou(y_true: np.ndarray, y_pred: np.ndarray) -> float:
             """Calculate the IOU of two masks
+            
             """
             intersection = np.logical_and(y_true, y_pred)
             union = np.logical_or(y_true, y_pred)
             iou_score = np.sum(intersection) / np.sum(union)
             return iou_score
 
-        def overlap(pred_mask, cur_slice_nodule):
-            #  blank_mask = np.zeros(self.mImgSize + [3]).astype(np.uint8)
-            for nodule in cur_slice_nodule:
-                if (nodule['shape_type'] != 'polygon'):
-                    continue
-                try:
-                    mask = nodule['mask']
-                    iou = numpy_iou(pred_mask, mask)
-                    if iou > 0.3:
-                        return True
-                    # mask3d = cv2.fillConvexPoly(blank_mask.copy(),
-                    #                                 np.array(nodule['points'],dtype=np.int32),
-                    #                                 (255,255,255))
-                    # mask = cv2.cvtColor(mask3d,cv2.COLOR_BGR2GRAY)
-                    # iou = numpy_iou(pred_mask, mask)
-                    # if iou > 0:
-                    #     return True
-                except:
-                    continue
-            return False
-
-        def del_overlap_rect(pred, cur_slice_nodule):
-            nodule_copy = cur_slice_nodule.copy()
-            nodule_copy.reverse()
-            for nodule in nodule_copy:
-                if nodule['shape_type'] == 'rectangle':
-                    rect = np.array(nodule['rect'],dtype=np.int32)
-                    pred_mask = pred[rect[1]:rect[3],rect[0]:rect[2]]
-                    if (pred_mask.sum() > 0) :
-                        self.gid.add(nodule['group_id'])
-                        del cur_slice_nodule[cur_slice_nodule.index(nodule)]
-
-        def remove_old_rect():
-            if len(self.gid) == 0:
+        def remove_old_rects() -> None:
+            """
+            Remove the old rectangles that are overlapped with the propagated mask.
+            
+            """
+            if len(self.deleted_group_ids_after_propagation) == 0:
                 return
-            for num in self.results_nodule.keys():
-                for nodule in self.results_nodule[num]:
-                    if nodule['group_id'] in self.gid and nodule['shape_type'] == 'rectangle':
-                        del self.results_nodule[num][self.results_nodule[num].index(nodule)]
-            self.gid.clear()
+            
+            for slice_id in self.results_nodule.keys():
+                deleted_nodule_ids = []
+                for nodule_i, nodule in enumerate(self.results_nodule[slice_id]):
+                    if nodule['group_id'] in self.deleted_group_ids_after_propagation and nodule['shape_type'] == SHAPETYPE.RECTANGLE:
+                        deleted_nodule_ids.append(nodule_i)
+                        
+                if len(deleted_nodule_ids) != 0:
+                    # Remove from tail to avoid index error
+                    deleted_nodule_ids = reversed(deleted_nodule_ids)
+                    for i in deleted_nodule_ids:
+                        del self.results_nodule[slice_id][i]
+                    
+            self.deleted_group_ids_after_propagation.clear()
 
-        def oneway_propagate(num_slice: int, toward: int, slice_range: List[int]):
-            origin_mask = self.predmask.copy()
-            self.toggle_segment_mode(True)
-            seq_points = self.prev_points
-            while num_slice in slice_range:
-                if self.interactiveModel is not None and len(seq_points) > 0:
-                    try:
-                        # first_click = seq_points[0,:2]
-                        pred = predict(self.interactiveModel,
-                                        self.image_data_dict[num_slice]['data'],
+        def combine_overlapped_nodule(slice_id: int, pred_mask: np.ndarray, is_current_slice: bool = False) -> np.ndarray:
+            """
+            Args:
+                slice_id: int
+                    The slice id of current slice.
+                pred_mask: np.ndarray
+                    The predicted mask of current slice.
+                is_current_slice: bool
+                    Whether the current slice is the slice that the user clicked, if True, we need to update the shapes of canvas.
+            """
+            deleted_polygon_nodule_ids = []
+            
+            polygon, centers = get_polygon((pred_mask.astype(np.uint8) * 255))
+            deleted_group_ids = set() # only use when is_current_slice is True
+            # Exists some nodules on current slice
+            if slice_id in self.results_nodule.keys():
+                # overlap with exist mask, combine
+                slice_img_shape = self.mImgSize + [3] # (512, 512, 3)
+                
+                for nodule_i, nodule in enumerate(self.results_nodule[slice_id]):
+                    if nodule['shape_type'] == SHAPETYPE.RECTANGLE: # overlaps with the existing rectangle, remove rectangle later
+                        rect = np.array(nodule['rect'], dtype=np.int32) # (x1, y1, x2, y2)
+                        if np.sum(pred_mask[rect[1]:rect[3], rect[0]:rect[2]]) > 0:
+                            self.deleted_group_ids_after_propagation.add(nodule['group_id'])
+                            deleted_group_ids.add(nodule['group_id'])
+                    elif nodule['shape_type'] == SHAPETYPE.POLYGON: # overlaps with the existing polygon, combine them
+                        try:
+                            mask = points_to_mask(nodule['points'], slice_img_shape)
+                            iou = numpy_iou(pred_mask, mask)
+                            if iou > 0.0:
+                                pred_mask = np.logical_or(pred_mask, mask).astype(np.uint8)
+                                deleted_polygon_nodule_ids.append(nodule_i)
+                                deleted_group_ids.add(nodule['group_id'])
+                        except Exception as e:
+                            self.errorMessage("Error Predict", f"{e}")
+                            continue
+            
+            # Because there are some polygons overlap with the predicted mask, we need to remove them and update the polygon and centers
+            if len(deleted_polygon_nodule_ids) != 0:
+                # Remove from tail to avoid index error
+                deleted_polygon_nodule_ids = reversed(deleted_polygon_nodule_ids)
+                for i in deleted_polygon_nodule_ids:
+                    del self.results_nodule[slice_id][i]
+                # Update the polygon and centers
+                polygon, centers = get_polygon((pred_mask.astype(np.uint8) * 255))
+            
+            shapes = []
+            for points, center_point in zip(polygon, centers):
+                if center_point is None:
+                    continue
+                points = np.array(points)
+                shape = self.setDefautShape(label = 'nodule',
+                                            points = points,
+                                            shape_type = SHAPETYPE.POLYGON,
+                                            mask = pred_mask.astype(np.uint8))
+                shapes.append(shape)
+
+            self.save_label(slice_id, shapes, add_new_shape = True)
+            seq_points = np.array([list(centers[0]) + [1]], dtype = np.int64)
+            return seq_points
+
+        def oneway_propagate(seq_points: np.ndarray, slice_id: int, toward: int, slice_range: List[int]) -> int:
+            previous_pred_mask = self.predmask.copy()
+            seq_points = seq_points.copy()
+            
+            while slice_id in slice_range and len(seq_points) > 0:
+                try:
+                    pred_mask = predict(self.interactiveModel,
+                                        self.image_data_dict[slice_id]['data'],
                                         seq_points, 
                                         self.output_keys, 
-                                        if_sis=True,
-                                        if_cuda=False,
-                                        )
-                        
-                        iou = numpy_iou(origin_mask, pred)
-                        polygon, centers = get_polygon((pred.astype(np.uint8) * 255))
-                        if iou < 0.60 or (polygon == None or centers == None):
-                            return num_slice
-                        if num_slice in self.results_nodule.keys():
-                            # overlap with exist mask, stop propagate
-                            if overlap(pred, self.results_nodule[num_slice]):
-                                return num_slice
-                            # overlap with exist rect, delete rect
-                            del_overlap_rect(pred, self.results_nodule[num_slice])
+                                        if_sis = True,
+                                        if_cuda = False)
+                    original_pred_mask = pred_mask.copy()
+                    iou = numpy_iou(previous_pred_mask, pred_mask)
+                    polygon, centers = get_polygon((pred_mask * 255))
+                    if iou < 0.60 or (polygon == None or centers == None):
+                        return slice_id
+                    
+                    # Update the previous predicted mask for next propagation
+                    previous_pred_mask = original_pred_mask
+                    seq_points = combine_overlapped_nodule(slice_id, pred_mask)
 
-                        origin_mask = pred
-                        shapes = []
-                        replace_shape = False
-                        for ps, cen in zip(polygon, centers):
-                            if cen is None:
-                                continue
-                            ps = np.array(ps)
-                            for shape in shapes:
-                                if shape.shape_type == 'rectangle':
-                                    shape.points.clear()
-                                    shape.shape_type = 'polygon'
-                                    for x, y in ps:
-                                        # Ensure the labels are within the bounds of the image. If not, fix them.
-                                        x, y, snapped = self.display.canvas.snapPointToCanvas(x, y)
-                                        if snapped:
-                                            self.set_dirty()
-                                        shape.addPoint(QPointF(x, y))
-                                        shape.close()
-                                    replace_shape = True
-
-                            if not replace_shape:
-                                shape = self.setDefautShape(label='nodule',
-                                                            points=ps,
-                                                            shape_type='polygon',
-                                                            mask= pred.astype(np.uint8),
-                                                            )
-                                shapes.append(shape)
-                            self.save_label(num_slice, shapes, save_new=not replace_shape)
-                        seq_points = np.array([list(centers[0]) + [1]], dtype=np.int64)
-    
-                    except Exception as e:
-                        self.errorMessage("Error Predict", f"{e}")
-                        return num_slice
-                num_slice += toward
-                self.progress_bar.setValue(self.progress_bar.value()+1)
-        from libraries.interactiveSegment import predict
-
-
-        slice_range = range(1, len(self.image_data_dict))
-        # Propagate to the upper slices
-        upper_num = oneway_propagate(self.current_slice - 1, -1, slice_range)
-        # Propagate to the lower slices
-        lower_num = oneway_propagate(self.current_slice + 1, 1, slice_range)
+                except Exception as e:
+                    self.errorMessage("Error Predict", f"{e}")
+                    return slice_id
+                slice_id += toward
+                self.progress_bar.setValue(self.progress_bar.value() + 1)
+            return slice_id
         
-        remove_old_rect()
+        from libraries.interactiveSegment import predict
+        # Check whether the interactive model exists
+        if self.interactiveModel is None:
+            self.errorMessage("InteractiveModel is None")
+            return
+        self.toggle_segment_mode(True)
+        
+        slice_range = range(1, len(self.image_data_dict))
+        
+        # Combine the predicted mask with the existing polygons
+        # Propagate to the upper slices
+        upper_num = oneway_propagate(seq_points, self.current_slice - 1, -1, slice_range)
+        # Propagate to the lower slices
+        lower_num = oneway_propagate(seq_points, self.current_slice + 1, 1, slice_range)
+        
+        remove_old_rects()
         self.progress_bar.setValue(100)
         self.update_analysis_table()
         self.inforMessage("Propagate", "Propagate Finished")

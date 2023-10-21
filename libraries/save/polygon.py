@@ -59,7 +59,7 @@ def get_polygon(mask, sample="Dynamic", building=False):
         polygons = list(filter(None, polygons))
         return polygons, centers
     else:
-        print("No label range, can't generate bounds")
+        # print("No label range, can't generate bounds")
         return None, None
 
 

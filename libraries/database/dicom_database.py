@@ -334,14 +334,15 @@ class DicomDatabaseAPI(object):
             user_id_mapping[user_id] = user_name
         return user_id_mapping
 
-    def get_all_series_path_and_relabel_status(self) -> Dict[int, Tuple[Tuple[int, int, int], Tuple[bool, str]]]:
+    def get_can_relabel_series_path_and_relabel_status(self) -> Dict[int, Tuple[Tuple[int, int, int], Tuple[bool, str]]]:
         """Get all series path and relabel status
         Returns: dict
             A dict of pair(series_path : is_relabel)
         """
         infos = dict()
         attrs = ['series_id', 'is_relabel', 'relabel_user_id']
-        statuses = self.db.select("series_status", attrs=attrs)
+        cond = {'is_continual':1, 'is_npy':1, 'is_inference':1}
+        statuses = self.db.select("series_status", attrs=attrs, cond=cond)
 
         user_id_mapping = self.get_user_id_mapping()
         attrs =  ['patient_id','study_folder_index','series_folder_index']
