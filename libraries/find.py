@@ -70,7 +70,7 @@ def refresh(history: List[Dict[str, Any]],
     """
     path_dicom = os.path.abspath(path_dicom)
     
-    series_path_and_relabel_status = dicom_db.get_all_series_path_and_relabel_status()
+    series_path_and_relabel_status = dicom_db.get_can_relabel_series_path_and_relabel_status()
     for folder_info, relabel_status in series_path_and_relabel_status.values(): # folder_info: (patient_id, study_id, series_id)
         dirname = gen_dicom_path(*folder_info)
         if dirname not in loaded_path:
