@@ -2,7 +2,7 @@
 ---
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
-## [Unreleased] 
+## [2.0.10] - 2023-10-21
 ### Changed
 - Hide the patient which is not inferenced by the model.
 ### Fixed
@@ -49,4 +49,3 @@
     3. /libraries/vtk.py
 ## [2.0.8] - 2023-10-04
 - First release
-```
