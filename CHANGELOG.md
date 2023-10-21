@@ -3,10 +3,13 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 ## [Unreleased] 
+### Changed
+- Hide the patient which is not inferenced by the model.
 ### Fixed
 - Speed up the loading of the nodule table
 - Set the time zone for displaying the last update time on the table to UTC+8 for consistency and accuracy in representation
-- Fix when 
+- Set the time zone for saving log files to UTC+8 for consistency and accuracy in representation
+
 ## [2.0.9] - 2023-10-13
 ### Added
 - Added User Option:

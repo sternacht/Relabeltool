@@ -55,6 +55,16 @@ def points_to_mask(points: List[Tuple[int, int]], shape: Tuple[int, int, int]) -
     mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
     return mask
 
+def get_timestamp(is_filename: bool = False) -> str:
+    tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
+    tw_time = datetime.datetime.now(tw_zone)
+    # tw_time = tw_time + datetime.timedelta(minutes=3, seconds=5) # For CYCH
+    if is_filename:
+        timestamp = tw_time.strftime(f"%y%m%d_%H%M%S")
+    else:
+        timestamp = tw_time.strftime("%Y/%m/%d %H:%M:%S")
+    return timestamp
+
 
 def read(filename, default=None):
     try:
@@ -784,9 +794,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             sort_reverse = getattr(self.tableFile, "sort_reverse", False)
             self.tableFile.sortByColumn(sort_column, Qt.SortOrder.DescendingOrder if sort_reverse else Qt.SortOrder.AscendingOrder)
         # Update Last Modified
-        tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
-        # tw_zone = datetime.timedelta(minutes=3, seconds=5)  
-        self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(datetime.datetime.now(tw_zone).strftime("%Y/%m/%d %H:%M:%S")))
+        timestamp = get_timestamp()
+        self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(timestamp))
     def load_recent(self, path):
         if self.may_continue():
             if os.path.isfile(path):
@@ -1441,11 +1450,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.results_nodule = {}
         if self.label_file is None:
             self.label_file = Label_Save(self.save_dir)
-        t = time.localtime()
-        timestamp = time.strftime("%y%m%d_%H%M%S", t)
-        # text, ok = QInputDialog().getText(self, 'saving log', '請輸入存檔檔名', QLineEdit.Normal, text)
-        # if not ok:
-        #     return
+            
+        # Update Last Modified
+        timestamp = get_timestamp(is_filename=True)
         file_name = f'log_{timestamp}_{self.user_name}'
         self.label_file.save_label_pickle(file_name, self.results_nodule)
         self.save_status = False
