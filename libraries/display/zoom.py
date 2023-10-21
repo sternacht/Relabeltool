@@ -97,7 +97,7 @@ class ZoomDisplay(QtWidgets.QWidget):
         
         units = - delta / (8*15)
         bar = self.scroll_bars[orientation]
-        value = bar.setValue(bar.value() + bar.singleStep() * units)
+        value = bar.setValue(int(bar.value() + bar.singleStep() * units))
         self.setScroll(orientation, value)
         
     def setScroll(self, orientation, value):

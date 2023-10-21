@@ -321,13 +321,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         title_layout = self.setTitleLabel()
         windowLayout.addLayout(title_layout)
 
-        
         # Group refresh data
         self.refresh_button = QToolButton(self)
         self.refresh_button.setIcon(new_icon('refresh.png'))
         self.refresh_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.refresh_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        # self.load_button.setStyleSheet(const.TEXT_FONT_MEDIUM )
         
         # Search
         self.query = QLineEdit(self)
@@ -339,27 +337,22 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         search_lay.addWidget(self.query, 1)
         search_lay.addWidget(self.refresh_button, 0)
 
-        #Table File Widget
+        # Table File Widget
         self.tableFile = TableWidget_List(header=None)
         self.tableFile.setMaximumHeight(int(self.height()*0.25))
         self.tableFile.setMinimumHeight(int(self.height()*0.20))
         self.group_box_select = QGroupBox("1. Select a Patient")
         
         group_layout_select = QVBoxLayout(self.group_box_select)
-        # group_layout_select.addWidget(self.load_button)
-        # group_layout_select.addWidget(self.query)
         group_layout_select.addLayout(search_lay)
         group_layout_select.addWidget(self.tableFile)
         # Group show patient information
         self.group_box_infor = QGroupBox("2. Patient Information")
-        # group_box_infor.setStyleSheet(const.TEXT_COLOR_DEFAULT + const.TEXT_FONT_LARGE)
         group_box_infor_layout = QHBoxLayout(self.group_box_infor)
         #List File Widget
         self.refresh()
         self.listFileWidget = PatientInforTable()
-        # self.listFileWidget.setStyleSheet(const.TEXT_COLOR_DEFAULT + const.TEXT_FONT_MEDIUM)
         group_box_infor_layout.addWidget(self.listFileWidget)
-        # self.listFileWidget.setFixedWidth(int(self.group_box_select.width()*0.48))
         self.group_box_infor.setFixedWidth(int(self.width()*0.25)) # modified by Ben
 
         # Inference Button
@@ -371,24 +364,21 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # Log Button
         self.log_button = QPushButton("History Log")
         self.log_button.setEnabled(False)
-        # self.log_button.setStyleSheet(const.TEXT_FONT_MEDIUM)
 
         self.inference_label = QLabel()
         self.inference_label.setFont(QFont("Times New Roman", 18))
         self.inference_label.setVisible(False)
-
 
         group_box_inference = QGroupBox("3. Load History Log")
         group_layout_inference = QVBoxLayout(group_box_inference)
         group_layout_inference.addWidget(self.inference_label,0)
         gli = QHBoxLayout()
         gli.setContentsMargins(0,0,0,0)
-        # gli.addWidget(self.inference_button)
         gli.addWidget(self.log_button)
         group_layout_inference.addLayout(gli, 1)
         
 
-        #Table Recall Precision Widget
+        # Table Recall Precision Widget
         self.table_analysis = AnalysisTable(header=None)
         self.table_analysis.setContentsMargins(0,0,0,0)
         self.table_analysis.setEnabled(False)
@@ -397,26 +387,21 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # self.table_analysis.setMinimumWidth(QApplication.desktop().window().width()*8//20)
         # self.table_analysis.setMaximumSize(QApplication.desktop().window().width()//3, QApplication.desktop().window().height()*0.25)
 
-        
         self.add_button = tool_button()
         self.add_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.add_button.setIcon(new_icon('plus'))
         self.add_button.setEnabled(False)
-        # self.add_button.setSizePolicy(toolbuttonSizePolicy)
 
         self.edit_button = tool_button()
         self.edit_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.edit_button.setIcon(new_icon('editing'))
         self.edit_button.setEnabled(False)
-        # self.edit_button.setSizePolicy(toolbuttonSizePolicy)
 
         self.delete_button = tool_button()
         self.delete_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        # self.delete_button.setSizePolicy(toolbuttonSizePolicy)
 
         self.update_button = tool_button()
         self.update_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        # self.update_button.setSizePolicy(toolbuttonSizePolicy)
 
         self.view_button = tool_button()
         self.view_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
@@ -430,7 +415,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         tool_btns_layout.addWidget(self.update_button)
         tool_btns_layout.addWidget(self.view_button)
 
-        ##Label List
+        ## Label List
         self.label_list = QListWidget()
 
         listview_layout = QVBoxLayout()
@@ -454,9 +439,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         group_layout_lung_nodule.addWidget(self.table_analysis, 2)
         group_layout_lung_nodule.addWidget(self.edit_slice,0)
 
-        # group_layout_lung_nodule.addWidget(self.pathology_text, 1)
-        
-
         self.display = Display()
         self.display.wheel_down.connect(self.open_next_image)
         self.display.wheel_up.connect(self.open_prev_image)
@@ -466,13 +448,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.display.edit_shape.connect(lambda shapes: self.zoomDisplay.update_shape(shapes))
         self.display.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
         self.display.canvas.pointSegment.connect(self.segmentation)
-        ##Slider 
-
+        
+        ## Slider 
         self.slider = QSlider(Qt.Horizontal)
         self.slider.setObjectName('slider')
 
-
-        #Control button: preview
+        # Control button: preview
         toolbuttonSizePolicy = QSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
         self.prevButton = tool_button()
@@ -487,7 +468,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.nextButton.setSizePolicy(toolbuttonSizePolicy)
         self.nextButton.setFixedHeight(21)
         
-
         control_layout = QHBoxLayout()
         control_layout.addWidget(self.prevButton)
         control_layout.addWidget(self.slider, 1)
@@ -512,11 +492,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.action_layout.addWidget(self.group_box_lung_nodule, 5, 0, 1, 2)
         self.action_layout.addWidget(self.group_plain_text, 5, 2, 1, 5)
         self.action_layout.addLayout(navigateLayout, 0, 6, 5, 1)
-        # self.action_layout.addLayout(mask_layout, 5, 7, 1, 1)
         self.action_layout.setColumnStretch(1, 1)
-        # self.action_layout.setColumnStretch(0, 2)
         self.action_layout.setColumnStretch(2, 2)
-        # self.action_layout.setColumnStretch(3, 1)
 
         self.label_coordinates = QLabel("")
         self.label_coordinates.setStyleSheet(const.TEXT_COLOR_DEFAULT)
@@ -534,13 +511,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.group_box_lung_nodule.setTitle(_translate("MainWindow", "Total Lung Nodules"))
 
     def resizeEvent(self, event) -> None:
-        
-        # self.edit_slice.setFixedWidth(int(self.group_box_lung_nodule.width()*0.25))
         self.group_box_lung_nodule.setFixedWidth(int(self.width()*0.48))
         self.table_analysis.setMinimumHeight(int(self.height()*0.15))
         self.tableFile.setFixedHeight(int(self.height()*0.20))
         self.zoomDisplay.setMaximumWidth(int(self.zoomDisplay.height()*1.8))
-        # self.listFileWidget.setFixedWidth(int(self.group_box_select.width()*0.48))
         win_width = self.width()
         self.group_box_infor.setFixedWidth(int(win_width*0.25))
         if win_width > 1500 and win_width <=1920:
@@ -697,14 +671,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     
         self.prevButton.setDefaultAction(self.actions.previous)
         self.nextButton.setDefaultAction(self.actions.next)
-        # self.add_button.setDefaultAction(create_mode)
-        # self.edit_button.setDefaultAction(edit_mode)
         self.delete_button.setDefaultAction(self.actions.delete)
         self.menus.file.aboutToShow.connect(self.update_file_menu)
         self.update_button.setDefaultAction(self.actions.update)
-        # self.load_button.setDefaultAction(open_image_folder)
-        # self.load_button.setMenu(open_menu)
-        # self.load_button.setPopupMode(QToolButton.MenuButtonPopup)
         
     def build_ui(self):
         "Create connections in User interface"
@@ -913,8 +882,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         # Even if we autosave the file, we keep the ability to undo
         self.actions.undo.setEnabled(self.display.canvas.isShapeRestorable)
-
-
+        
         # if self._config["auto_save"] or self.actions.saveAuto.isChecked():
         #     label_file = osp.splitext(self.imagePath)[0] + ".json"
         #     if self.output_dir:
@@ -957,10 +925,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.label_coordinates.clear()
         
         self.zoomDisplay.image = QImage()
-        #Advance
+        # Advance
         self.update_table = False
         self.actions.delete.setEnabled(False)
-        # self.actions.update.setEnabled(False)
 
     def update_recent_file(self):
         self.recent_files = [value.get('Path', "") for value in self.history]
@@ -1004,70 +971,36 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.actions.viewMode.setEnabled(True)
         self.add_button.setEnabled(not edit)
         self.edit_button.setEnabled(edit)
-        if edit:
+        if edit == True:
             self.actions.createMode.setEnabled(edit)
             self.actions.createPolyMode.setEnabled(True)
-            # self.actions.createRectangleMode.setEnabled(True)
-            # self.actions.createCircleMode.setEnabled(True)
-            # self.actions.createLineMode.setEnabled(True)
             self.actions.createPointMode.setEnabled(True)
-            # self.actions.createLineStripMode.setEnabled(True)
-
         else:
+            self.actions.update.setEnabled(True)
             if createMode == "polygon":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(False)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "rectangle":
                 self.actions.createMode.setEnabled(False)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(False)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "line":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(False)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "point":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(False)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "circle":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(False)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(True)
-                # self.edit_button.setEnabled(not edit)
             elif createMode == "linestrip":
                 self.actions.createMode.setEnabled(True)
                 self.actions.createPolyMode.setEnabled(True)
-                # self.actions.createRectangleMode.setEnabled(True)
-                # self.actions.createCircleMode.setEnabled(True)
-                # self.actions.createLineMode.setEnabled(True)
                 self.actions.createPointMode.setEnabled(True)
-                # self.actions.createLineStripMode.setEnabled(False)
-                # self.edit_button.setEnabled(not edit)
             else:
                 raise ValueError("Unsupported createMode: %s" % createMode)
         self.actions.editMode.setEnabled(not edit)
@@ -1458,8 +1391,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.save_status = False
         saved_notify()
         self.confirm.setEnabled(True)
-        # else:
-        #     self.errorMessage("Error Save", "{}".format("Nothing to save"))
 
     def save_mask(self):
         def saved_notify():
@@ -2138,9 +2069,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     ########## modified by Ben ##########
     def getNoduleAnalysis(self, pathtxt):
-        # with open(pathtxt, 'r') as f:
-        #     if len(f.readlines()) <= 1:
-        #         pathtxt = os.path.join(self.dirname, 'inference.txt')
         if pathtxt and os.path.exists(pathtxt):
         # dict_patient, dict_file = olap.merge_overlapping(olap.readtxt(pathtxt))
         

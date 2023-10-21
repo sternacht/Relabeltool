@@ -9,7 +9,7 @@
 - Speed up the loading of the nodule table
 - Set the time zone for displaying the last update time on the table to UTC+8 for consistency and accuracy in representation
 - Set the time zone for saving log files to UTC+8 for consistency and accuracy in representation
-
+- After loading the log, it cannot press "Update" button to update the nodule table.
 ## [2.0.9] - 2023-10-13
 ### Added
 - Added User Option:
