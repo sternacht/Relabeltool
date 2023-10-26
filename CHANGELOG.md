@@ -2,6 +2,9 @@
 ---
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
+## [Unreleased]
+### Fixed
+- Fix the bug that it cannot segment multiple nodules on the same slice simultaneously.
 ## [2.0.10] - 2023-10-21
 ### Changed
 - Hide the patient which is not inferenced by the model.
