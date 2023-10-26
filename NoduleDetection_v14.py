@@ -2284,6 +2284,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.firstClickSegment()
     
     def finish_segment(self):
+        
         def overlap_with_rectangle(pred, rect) -> bool:
             pred_mask = pred[rect[1]:rect[3],rect[0]:rect[2]]
             if pred_mask.sum() > 0:
@@ -2293,16 +2294,33 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             if np.logical_and(pred_mask, mask).sum() > 0:
                 return True
             return False
-        
+        def fail_segmentation():
+            self.errorMessage("Error Segmentation", f"None to save")
+            # Delete points
+            shapes = self.display.shapes()
+            deleted_shape_ids = set()
+            for shape_i, shape in enumerate(shapes):
+                if shape.group_id == None:
+                    deleted_shape_ids.add(shape_i)
+            deleted_shape_ids = reversed(sorted(list(deleted_shape_ids)))
+            for shape_i in deleted_shape_ids:
+                del shapes[shape_i]
+            self.loadShapes(shapes, replace=True)
+            
+            self.load_file(self.image_data_dict[self.current_slice]['data'], 
+                            self.image_data_dict[self.current_slice]['path'],
+                            self.image_data_dict[self.current_slice]['mode'])
+            # Restore the settings        
+            self.toggle_segment_mode(False)
+            self.confirm.setEnabled(True)
+            
         self.display.canvas.setViewing()
         self.zoomDisplay.canvas.setViewing()
         
         # if there is no nodule in the current slice, then return
         polygon, centers = get_polygon((self.pred_mask.astype(np.uint8) * 255))
         if polygon == None or centers == None:
-            self.errorMessage("Error Segmentation", f"None to save")
-            self.toggle_segment_mode(False)
-            self.confirm.setEnabled(True)
+            fail_segmentation()
             return
         
         # Start the loading animation
@@ -2312,75 +2330,81 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         QApplication.processEvents()
         self.setEnabled(False)
         
-        # Check if the segmentation in current slice overlap with the previous segmentation
-        # (1) If overlap and the previous annotation is a rectangle, then delete the previous segmentation
-        # (2) If overlap and the previous annotation is a polygon, then merge the two masks
-        shapes = self.display.shapes()
-        deleted_shape_ids = set()
-        merged_mask = self.pred_mask.copy()
-        for shape_i, shape in enumerate(shapes):
-            if shape.group_id == None:
-                deleted_shape_ids.add(shape_i)
-            
-            elif shape.shape_type == SHAPETYPE.RECTANGLE and overlap_with_rectangle(self.pred_mask, np.array(shape.rect, dtype=np.int32)):
-                deleted_shape_ids.add(shape_i)
-                self.deleted_group_ids_after_propagation.add(shape.group_id)
-                
-            elif shape.shape_type == SHAPETYPE.POLYGON:
-                polygon_points = [[point.x(), point.y()] for point in shape.points]
-                polygon_mask = points_to_mask(polygon_points, self.mImgSize + [3])
-                # if overlap, then merge the two masks
-                if overlap_with_polygon(merged_mask, polygon_mask):
-                    merged_mask = np.logical_or(merged_mask, polygon_mask).astype(np.uint8)
+        try:
+            # Check if the segmentation in current slice overlap with the previous segmentation
+            # (1) If overlap and the previous annotation is a rectangle, then delete the previous segmentation
+            # (2) If overlap and the previous annotation is a polygon, then merge the two masks
+            shapes = self.display.shapes()
+            deleted_shape_ids = set()
+            merged_mask = self.pred_mask.copy()
+            for shape_i, shape in enumerate(shapes):
+                if shape.group_id == None:
                     deleted_shape_ids.add(shape_i)
-        
-        # Delete the overlapped shapes
-        deleted_shape_ids = reversed(sorted(list(deleted_shape_ids)))
-        for shape_i in deleted_shape_ids:
-            del shapes[shape_i]
-        
-        # If there are multiple nodules in the current slice, then split the merged mask into multiple masks
-        if len(polygon) > 1 or len(centers) > 1:
-            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(merged_mask.astype(np.uint8), 8)
-            masks = []
-            for i in range(1, num_labels):
-                nodule_mask = np.zeros_like(merged_mask, dtype=np.uint8)
-                nodule_mask[labels == i] = 1
-                masks.append(nodule_mask)
-        else:
-            masks = [merged_mask]
-        
-        for i, mask in enumerate(masks):
-            self.progress_bar.reset()
-            self.progress_bar.setValue(0)
-            polygon, centers = get_polygon(mask.astype(np.uint8) * 255)
-            # Add the new polygon shape to the canvas
-            shape = self.setDefautShape(label = 'nodule',
-                                        points = polygon[0],
-                                        shape_type = SHAPETYPE.POLYGON,
-                                        mask = mask.astype(np.uint8))
-            shapes.append(shape)
                 
-            center_point = list(centers[0])
-            center_point.append(1)
+                elif shape.shape_type == SHAPETYPE.RECTANGLE and overlap_with_rectangle(self.pred_mask, np.array(shape.rect, dtype=np.int32)):
+                    deleted_shape_ids.add(shape_i)
+                    self.deleted_group_ids_after_propagation.add(shape.group_id)
+                    
+                elif shape.shape_type == SHAPETYPE.POLYGON:
+                    polygon_points = [[point.x(), point.y()] for point in shape.points]
+                    polygon_mask = points_to_mask(polygon_points, self.mImgSize + [3])
+                    # if overlap, then merge the two masks
+                    if overlap_with_polygon(merged_mask, polygon_mask):
+                        merged_mask = np.logical_or(merged_mask, polygon_mask).astype(np.uint8)
+                        deleted_shape_ids.add(shape_i)
             
-            seq_points = np.array([center_point], dtype=np.int64)
+            # If there are multiple nodules in the current slice, then split the merged mask into multiple masks
+            if len(polygon) > 1 or len(centers) > 1:
+                num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(merged_mask.astype(np.uint8), 8)
+                masks = []
+                for i in range(1, num_labels):
+                    nodule_mask = np.zeros_like(merged_mask, dtype=np.uint8)
+                    nodule_mask[labels == i] = 1
+                    masks.append(nodule_mask)
+            else:
+                masks = [merged_mask]
             
-            # Use the points on current slice to propagate the segmentation to the neighboring slices
-            self.propagate(mask, seq_points)
-        self.update_analysis_table()
-        self.load_file(self.image_data_dict[self.current_slice]['data'], 
-                        self.image_data_dict[self.current_slice]['path'],
-                        self.image_data_dict[self.current_slice]['mode'])
-            # print('load_shape')
-            # self.loadShapes(shapes, replace=True)
-        self.toggle_segment_mode(False)
-        self.inforMessage("Propagate", "Propagate Finished")
-        self.confirm.setEnabled(True)
-        
-        loading.stopAnimation()
-        self.setEnabled(True)
-        
+            is_any_success = False
+            for i, mask in enumerate(masks):
+                self.progress_bar.reset()
+                self.progress_bar.setValue(0)
+                polygon, centers = get_polygon(mask.astype(np.uint8) * 255)
+                if len(polygon) == 0 or len(centers) == 0:
+                    continue
+                is_any_success = True
+                # Add the new polygon shape to the canvas
+                shape = self.setDefautShape(label = 'nodule',
+                                            points = polygon[0],
+                                            shape_type = SHAPETYPE.POLYGON,
+                                            mask = mask.astype(np.uint8))
+                shapes.append(shape)
+                center_point = list(centers[0])
+                center_point.append(1)
+                
+                seq_points = np.array([center_point], dtype=np.int64)
+                
+                # Use the points on current slice to propagate the segmentation to the neighboring slices
+                self.propagate(mask, seq_points)
+            
+            if is_any_success:
+                # Delete the overlapped shapes
+                deleted_shape_ids = reversed(sorted(list(deleted_shape_ids)))
+                for shape_i in deleted_shape_ids:
+                    del shapes[shape_i]
+                self.update_analysis_table()
+                self.load_file(self.image_data_dict[self.current_slice]['data'], 
+                                self.image_data_dict[self.current_slice]['path'],
+                                self.image_data_dict[self.current_slice]['mode'])
+                # self.loadShapes(shapes, replace=True)
+                self.inforMessage("Propagate", "Propagate Finished")
+            else:
+                fail_segmentation()
+        finally:
+            self.toggle_segment_mode(False)
+            self.confirm.setEnabled(True)
+            
+            loading.stopAnimation()
+            self.setEnabled(True)
     def clean_canvas(self):
         cur_image = self.image_data_dict[self.current_slice]['data']
         image = QImage(cur_image, cur_image.shape[1], cur_image.shape[0], cur_image.shape[1]*3,  QImage.Format_RGB888)
