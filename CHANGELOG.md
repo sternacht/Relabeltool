@@ -3,9 +3,12 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 - In specific cases, the program may not ask user to save the changes before exiting the program.
-## [2.0.11b] - 2023-10-28
+## [2.0.11] - 2023-10-28
+### Added
+- Add loading progress bar when progating the nodule.
 ### Fixed
 - Fix the bug that it cannot segment multiple nodules on the same slice simultaneously.
+- Removed redundant duplicate function calls to optimize the code.
 ## [2.0.10] - 2023-10-21
 ### Changed
 - Hide the patient which is not inferenced by the model.

@@ -2085,7 +2085,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             else:
                 self.results_nodule = {}
                 result_txt = ""
-                loading.close()
                 self.inforMessage("Not found", "Not find the nodule")
 
             #Save result into txt file
@@ -2235,7 +2234,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 self.errorMessage("Error Loading Model", "Please check again: {}".format(Exception))
                 self.setEnabled(True)
 
-
     def segmentation(self):
         from libraries.interactiveSegment import predict
         shapes = self.display.shapes()
@@ -2326,11 +2324,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         
         # Start the loading animation
         loading = loadingDialog(self)
+        loading.setWindowTitle("Propagating ...")
         loading.setText("Propagating the segmentation. Please wait....")
         loading.startAnimation()
-        QApplication.processEvents()
         self.setEnabled(False)
-        
         try:
             # Check if the segmentation in current slice overlap with the previous segmentation
             # (1) If overlap and the previous annotation is a rectangle, then delete the previous segmentation
@@ -2367,8 +2364,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             
             is_any_success = False
             for i, mask in enumerate(masks):
+                # Update UI
+                loading.setText("Propagating the segmentation({}/{})".format(i+1, len(masks)))
                 self.progress_bar.reset()
                 self.progress_bar.setValue(0)
+                
+                # Get the polygon and center point of the mask
                 polygon, centers = get_polygon(mask.astype(np.uint8) * 255)
                 if len(polygon) == 0 or len(centers) == 0:
                     continue
@@ -2379,12 +2380,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                                             shape_type = SHAPETYPE.POLYGON,
                                             mask = mask.astype(np.uint8))
                 shapes.append(shape)
+                # Use the points on current slice to propagate the segmentation to the neighboring slices
                 center_point = list(centers[0])
                 center_point.append(1)
-                
                 seq_points = np.array([center_point], dtype=np.int64)
-                
-                # Use the points on current slice to propagate the segmentation to the neighboring slices
                 self.propagate(mask, seq_points)
             
             if is_any_success:
@@ -2551,6 +2550,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             
             while slice_id in slice_range and len(seq_points) > 0:
                 try:
+                    QApplication.processEvents()
                     pred_mask = predict(self.interactiveModel,
                                         self.image_data_dict[slice_id]['data'],
                                         seq_points, 
