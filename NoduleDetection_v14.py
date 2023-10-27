@@ -1586,8 +1586,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             objThreading.started.connect(preprocessing.processing)
             objThreading.finished.connect(loading.stopAnimation)
             objThreading.start()
+            
+            self.setEnabled(False)
             while objThreading.isRunning():
-                self.setEnabled(False)
                 QApplication.processEvents()
             self.patient_infor = preprocessing.get_patient_infor()
             
@@ -2578,7 +2579,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         if self.interactiveModel is None:
             self.errorMessage("InteractiveModel is None")
             return
-        self.toggle_segment_mode(True)
         
         slice_range = range(1, len(self.image_data_dict))
         
@@ -2590,7 +2590,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         
         remove_old_rects()
         self.progress_bar.setValue(100)
-        self.toggle_segment_mode(False)
       
     def change_auto_refresh_frequency(self):
         new_freq, ok = QInputDialog.getInt(self, 'Change Auto Refresh Frequency', 'Please input a number(seconds):', self.auto_refresh_freqency, 30, step=1)
