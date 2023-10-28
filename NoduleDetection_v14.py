@@ -2354,7 +2354,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                                 self.image_data_dict[self.current_slice]['path'],
                                 self.image_data_dict[self.current_slice]['mode'])
                 # self.loadShapes(shapes, replace=True)
-                self.inforMessage("Propagate", "Propagate Finished")
             else:
                 fail_segmentation()
         finally:
@@ -2363,6 +2362,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             
             loading.stopAnimation()
             self.setEnabled(True)
+        
+        if is_any_success:
+            self.inforMessage("Propagate", "Propagate Finished")
             
     def clean_canvas(self):
         cur_image = self.image_data_dict[self.current_slice]['data']
