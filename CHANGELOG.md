@@ -3,6 +3,14 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 - In specific cases, the program may not ask user to save the changes before exiting the program.
+
+## [Unreleased]
+### Changed
+- After selecting new patient, the program will not reset the model.
+### Optimized
+- Change loading model method to thread to avoid the program freezing.
+- Removed redundant duplicate comments to optimize the code.
+
 ## [2.0.11] - 2023-10-28
 ### Added
 - Add loading progress bar when progating the nodule.
