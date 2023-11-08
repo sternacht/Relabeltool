@@ -1410,6 +1410,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             for i in range(len(self.history)):
                 if self.history[i]["Path"] == self.dirname:
                     self.history[i]["Confirmed"] = 'V'
+                    self.history[i]["Confirmed_User"] = self.user_name
                     break
             # Update the confirmed counts
             confirmed_counts = len(list(filter(lambda x: x["Confirmed"] == 'V', self.history)))

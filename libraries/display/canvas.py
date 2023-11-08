@@ -596,7 +596,7 @@ class Canvas(QtWidgets.QWidget):
         y1 = top - point.y()
         x2 = right - point.x()
         y2 = bottom - point.y()
-        self.offsets = QtCore.QPoint(x1, y1), QtCore.QPoint(x2, y2)
+        self.offsets = QtCore.QPoint(int(x1), int(y1)), QtCore.QPoint(int(x2), int(y2))
 
     def snapPointToCanvas(self, x, y):
         """
