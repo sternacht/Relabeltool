@@ -1009,16 +1009,18 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def toggle_view_mode(self, view=True):
         self.display.canvas.setViewing()
         self.zoomDisplay.canvas.setViewing()
-        self.actions.createMode.setEnabled(view)
-        self.actions.editMode.setEnabled(view)
-        self.actions.viewMode.setEnabled(not view)
+        # self.actions.createMode.setEnabled(view)
+        # self.actions.editMode.setEnabled(view)
+        # self.actions.viewMode.setEnabled(not view)
         if (not self.add_button.isChecked()) and (not self.edit_button.isChecked()):
             self.add_button.setEnabled(view)
             self.edit_button.setEnabled(view)
         elif self.add_button.isChecked():
             self.toggle_draw_mode(False, 'polygon')
+            self.add_button.setChecked(False)
         elif self.edit_button.isChecked():
             self.toggle_draw_mode(True)
+            self.edit_button.setChecked(False)
 
     def toggle_segment_mode(self, enable: bool):
         self.undoSegment_button.setEnabled(enable)
@@ -1954,29 +1956,28 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.toggle_view_mode()
         if self.results_nodule is None or len(self.results_nodule) <= 0:
             return
-        if True: #self.dirty:
-            patient_ID = self.patient_infor['PatientID']
-            results_nodule = sorted(self.results_nodule.items())
-            dict_patient = {patient_ID : dict(results_nodule)}
-            patient_tracking = olap.collect3d(dict_patient)
-            self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
-            self.results_nodule = list(new_dict_patient.values())[0]
-            self.table_analysis.clear()
-            if self.results_nodule_analysis and len(self.results_nodule_analysis) > 0:
-                if self.benign_hidden.isChecked():
-                    self.table_analysis._addData(list(filter(lambda a: a["Category"] != "Benign" or a["data"][0][7]["shape_type"] == "polygon", self.results_nodule_analysis)))
-                else:
-                    self.table_analysis._addData(self.results_nodule_analysis)
-                self.table_analysis.setEnabled(True)
-                self.update_groove_color()
-            if not self.edit_on:
-                self.dirty = False
-            self.group_box_lung_nodule.setTitle("Total Lung Nodules:{:5d}".format(self.table_analysis.rowCount()))
-            if self.current_slice is not None:    
-                self.load_file(self.image_data_dict[self.current_slice]['data'], 
-                               self.image_data_dict[self.current_slice]['path'],
-                               self.image_data_dict[self.current_slice]['mode'])
-
+        
+        patient_ID = self.patient_infor['PatientID']
+        results_nodule = sorted(self.results_nodule.items())
+        dict_patient = {patient_ID : dict(results_nodule)}
+        patient_tracking = olap.collect3d(dict_patient)
+        self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
+        self.results_nodule = list(new_dict_patient.values())[0]
+        self.table_analysis.clear()
+        if self.results_nodule_analysis and len(self.results_nodule_analysis) > 0:
+            if self.benign_hidden.isChecked():
+                self.table_analysis._addData(list(filter(lambda a: a["Category"] != "Benign" or a["data"][0][7]["shape_type"] == "polygon", self.results_nodule_analysis)))
+            else:
+                self.table_analysis._addData(self.results_nodule_analysis)
+            self.table_analysis.setEnabled(True)
+            self.update_groove_color()
+        if not self.edit_on:
+            self.dirty = False
+        self.group_box_lung_nodule.setTitle("Total Lung Nodules:{:5d}".format(self.table_analysis.rowCount()))
+        if self.current_slice is not None:    
+            self.load_file(self.image_data_dict[self.current_slice]['data'], 
+                            self.image_data_dict[self.current_slice]['path'],
+                            self.image_data_dict[self.current_slice]['mode'])
     def delete_item_analysis_table(self, id_no:int, list_remove:list, list_analysis:list):
         if len(list_remove) > 0:
             for remove_key in list_remove:

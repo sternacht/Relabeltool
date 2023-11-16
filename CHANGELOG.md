@@ -5,6 +5,8 @@
 - In specific cases, the program may not ask user to save the changes before exiting the program.
 
 ## [Unreleased]
+### Fixed
+- When editing the nodule more than once, there are some unexpected behaviors.
 ### Changed
 - After selecting new patient, the program will not reset the model.
 ### Optimized
