@@ -917,7 +917,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.actions.undo.setEnabled(self.display.canvas.isShapeRestorable)
         self.undoSegment_button.setEnabled(self.display.canvas.isShapeRestorable)
         self.segmentation()
-
+            
     def toggle_drawing_sensitive(self, drawing=True):
         """In the middle of drawing, toggling between modes should be disabled."""
         self.actions.editMode.setEnabled(not drawing)
@@ -1609,10 +1609,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             if self.results_nodule is not None and self.current_slice in self.results_nodule.keys():
                 label_shape = list(self.results_nodule[self.current_slice])
                 self.load_labels(label_shape)
-            if mode:
-                self.toggle_draw_mode(mode)
+                
+            if not self.segmentation_button.isChecked():
+                if mode:
+                    self.toggle_draw_mode(mode)
+                else:
+                    self.toggle_view_mode(not mode)
             else:
-                self.toggle_view_mode(not mode)
+                self.actions.update.setEnabled(False)
             self.display.canvas.repaint()
             self.zoomDisplay.canvas.repaint()
         self.zoom_x, self.zoom_y = zoom_value
@@ -1662,9 +1666,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     """
 
     def open_next_image(self, _value=False):
+        # if self.auto_saving.isChecked() and self.dirty is True:
+        self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
         self.update_and_get_segmentation_btn_status(reset=True)
-        if self.auto_saving.isChecked() and self.dirty is True:
-            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
         if self.image_data_dict is None or self.data_size is None or self.data_size <=0:
             return
 
@@ -1674,9 +1678,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.set_slider()
 
     def open_prev_image(self, _value=False):
+        # if self.auto_saving.isChecked() and self.dirty is True:
+        self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
         self.update_and_get_segmentation_btn_status(reset=True)
-        if self.auto_saving.isChecked() and self.dirty is True:
-            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
         if self.image_data_dict is None or self.data_size is None or self.data_size <=0:
             return
 
@@ -2143,6 +2147,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.set_view_mode()
             return
         # Disable all buttons after first click
+        if self.add_button.isChecked():
+            self.add_button.setChecked(False)
+            self.toggle_draw_mode(True)
+        if self.edit_button.isChecked():
+            self.edit_button.setChecked(False)
+            self.toggle_draw_mode(True)
         self.toggle_draw_mode(False, createMode = 'point')
         self.actions.createMode.setEnabled(False)
         self.actions.createPolyMode.setEnabled(False)
@@ -2212,9 +2222,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             except:
                 self.errorMessage("Error Predict", "{}".format(Exception))
         else:
-            self.load_file(self.image_data_dict[self.current_slice]['data'], 
-                            self.image_data_dict[self.current_slice]['path'],
-                            self.image_data_dict[self.current_slice]['mode'])
+            self.delete_points_and_lines_on_canvas()
+            # self.load_file(self.image_data_dict[self.current_slice]['data'], 
+            #                 self.image_data_dict[self.current_slice]['path'],
+            #                 self.image_data_dict[self.current_slice]['mode'])
             self.toggle_segment_mode(False)
 
     def reset_segmentation(self):
