@@ -149,7 +149,7 @@ class WindowUI_Mixin(object):
 
         bbox_label = QLabel("Manual Labelling")
         bbox_label.setStyleSheet(const.TEXT_FONT_MEDIUM)
-        self.segmentation_button = QPushButton("Segmentation")
+        self.segmentation_button = QPushButton("Segmentation", checkable=True)
         self.segmentation_button.setEnabled(False)
 
         note = QLabel("FG: Mouse Left\nBG: Mouse Right")
@@ -158,8 +158,8 @@ class WindowUI_Mixin(object):
         self.undoSegment_button = QPushButton("Undo")
         self.undoSegment_button.setEnabled(False)
 
-        self.resetSegment_button = QPushButton("Reset")
-        self.resetSegment_button.setEnabled(False)
+        # self.resetSegment_button = QPushButton("Reset")
+        # self.resetSegment_button.setEnabled(False)
 
         self.finishSegment_button = QPushButton("Finish Segment")
         self.finishSegment_button.setEnabled(False)
@@ -208,7 +208,7 @@ class WindowUI_Mixin(object):
         layout.addWidget(self.segmentation_button)
         layout.addWidget(note)
         layout.addWidget(self.undoSegment_button)
-        layout.addWidget(self.resetSegment_button)
+        # layout.addWidget(self.resetSegment_button)
         layout.addWidget(self.finishSegment_button)
         layout.addLayout(hlayout)
         layout.addStretch(1)
@@ -294,7 +294,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.deleted_group_ids_after_propagation = set()
         # Mode default setting
         self.s = [] # keep total nodule on cur_slice for benign hidden mode
-        self.edit_on = 0
         self.hidden_on = False
         self.view_lock = False
 
@@ -444,8 +443,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         layout_plain_text = QHBoxLayout(self.group_plain_text)
         layout_plain_text.addWidget(self.pathology_text, 1)
 
-
-        ##Group Nodule
+        ## Group Nodule
         self.group_box_lung_nodule = QGroupBox("Lung Nodule")
         group_layout_lung_nodule = QHBoxLayout(self.group_box_lung_nodule)
         group_layout_lung_nodule.addWidget(self.table_analysis, 2)
@@ -456,7 +454,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.display.wheel_up.connect(self.open_prev_image)
         self.display.canvas.newShape.connect(self.new_shape)
         self.display.canvas.selectionChanged.connect(self.shape_selection_changed)
-        self.display.canvas.shapeMoved.connect(self.set_dirty)
+        self.display.canvas.anyShapeChanged.connect(self.set_dirty)
         self.display.edit_shape.connect(lambda shapes: self.zoomDisplay.update_shape(shapes))
         self.display.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
         self.display.canvas.pointSegment.connect(self.segmentation)
@@ -672,7 +670,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             change_point_size
         ))
         add_actions(self.menus.help, (show_shortcut, show_confirm_status, change_auto_refresh_freq, None))
-        pass
 
     def actionConnect(self):
         open_menu = QMenu(self)
@@ -718,7 +715,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         self.segmentation_button.clicked.connect(self.click_segmentation_btn)
         self.undoSegment_button.clicked.connect(self.undo_shape_edit)
-        self.resetSegment_button.clicked.connect(self.reset_segmentation)
+        # self.resetSegment_button.clicked.connect(self.reset_segmentation)
         self.finishSegment_button.clicked.connect(self.finish_segment)
 
         # for talbe analysis
@@ -780,12 +777,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             else:
                 self.importImages(path, load_images)
 
-    # def current_item(self):
-    #     items = self.label_list.selectedItems()
-    #     if items:
-    #         return items[0]
-    #     return None
-
     def update_file_menu(self):
         curr_file_path = self.file_path
         menu = self.menus.recentFiles
@@ -835,18 +826,17 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def closeEvent(self, a0:QCloseEvent):
         if not self.may_continue():
             a0.ignore()
+            return
         return super().closeEvent(a0)
 
     def errorMessage(self, title, message):
-        """
-        Show Warning Dialog
+        """Show Warning Dialog
         """
         return QMessageBox.critical(self, title,
                                     '<p><b>%s</b></p>%s' % (title, message))
 
     def inforMessage(self, title, message):
-        """
-        Show Infor Dialog
+        """Show Warning Dialog
         """
         return QMessageBox.information(self, title,
                                     '<p><b>%s</b></p>%s' % (title, message))
@@ -868,13 +858,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         dialog.exec_()
     
     def keyReleaseEvent(self, event:QKeyEvent):
-        # if event.key() == Qt.Key_Control:
-        #     self.canvas.set_drawing_shape_to_square(False)
         return super().keyReleaseEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent):
-        # if event.key() == Qt.Key_Control:
-        #     self.canvas.set_drawing_shape_to_square(True)
         return super().keyPressEvent(event)
 
     def no_shapes(self):
@@ -884,23 +870,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.dirty = True
         self.save_status = True
         self.actions.save.setEnabled(True)
-
         # Even if we autosave the file, we keep the ability to undo
         self.actions.undo.setEnabled(self.display.canvas.isShapeRestorable)
-        
-        # if self._config["auto_save"] or self.actions.saveAuto.isChecked():
-        #     label_file = osp.splitext(self.imagePath)[0] + ".json"
-        #     if self.output_dir:
-        #         label_file_without_path = os.path.basename(label_file)
-        #         label_file = os.path.join(self.output_dir, label_file_without_path)
-        #     self.saveLabels(label_file)
-        #     return
-        # self.dirty = True
-        # self.actions.save.setEnabled(True)
-        # title = __appname__
-        # if self.filename is not None:
-        #     title = "{} - {}*".format(title, self.filename)
-        # self.setWindowTitle(title)
 
     def set_clean(self):
         self.dirty = False
@@ -965,7 +936,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # Display
         self.display.canvas.setEditing(edit)
         self.display.canvas.createMode = createMode
-
         # Zoom Display
         self.zoomDisplay.canvas.setEditing(edit)
         self.zoomDisplay.canvas.createMode = createMode
@@ -1006,31 +976,30 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 raise ValueError("Unsupported createMode: %s" % createMode)
         self.actions.editMode.setEnabled(not edit)
 
-    def toggle_view_mode(self, view=True):
+    def toggle_view_mode(self, view = True):
         self.display.canvas.setViewing()
         self.zoomDisplay.canvas.setViewing()
-        # self.actions.createMode.setEnabled(view)
-        # self.actions.editMode.setEnabled(view)
-        # self.actions.viewMode.setEnabled(not view)
+        
+        self.actions.createMode.setEnabled(view)
+        self.actions.editMode.setEnabled(view)
+        self.actions.viewMode.setEnabled(not view)
+        
         if (not self.add_button.isChecked()) and (not self.edit_button.isChecked()):
             self.add_button.setEnabled(view)
             self.edit_button.setEnabled(view)
         elif self.add_button.isChecked():
             self.toggle_draw_mode(False, 'polygon')
-            self.add_button.setChecked(False)
         elif self.edit_button.isChecked():
             self.toggle_draw_mode(True)
-            self.edit_button.setChecked(False)
 
     def toggle_segment_mode(self, enable: bool):
         self.undoSegment_button.setEnabled(enable)
-        self.resetSegment_button.setEnabled(enable)
+        # self.resetSegment_button.setEnabled(enable)
         self.finishSegment_button.setEnabled(enable)
-        self.confirm.setEnabled(False)
+        # self.confirm.setEnabled(False)
 
     def set_create_mode(self, press=True):
         if press:
-            # self.toggle_view_mode(True)
             self.toggle_draw_mode(False, "polygon")
             self.update_table = True
         else:
@@ -1041,12 +1010,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.toggle_draw_mode(True, "rectangle")
             self.label_selection_changed()
             self.update_table = True
+            self.actions.update.setEnabled(True)
             self.set_dirty()
-            self.edit_on += 1
         else:
-            self.edit_on -= 1
             self.toggle_view_mode()
-
+            
     def reset_hidden_mode(self):
         self.view_button.setIcon(new_icon('eye'))
         self.view_button.setChecked(False)
@@ -1054,9 +1022,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def set_hidden_mode(self, press=True):
         if press:
-            if self.auto_saving.isChecked():
-                if self.dirty is True:
-                    self.save_label(self.current_slice, self.display.shapes())
+            if self.auto_saving.isChecked() and self.dirty is True:
+                    self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
             self.view_button.setIcon(new_icon('hidden'))
             self.hidden_on = True
             self.display.canvas.setAllShapeVisible(False)
@@ -1081,7 +1048,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.zoomDisplay.canvas.update()
 
     def set_view_mode(self):
-        self.toggle_view_mode(True)   
+        if self.segmentation_button.isChecked():
+            self.update_and_get_segmentation_btn_status(reset=True)
+        self.toggle_view_mode(True)
 
     def set_fit_window(self, value=True):
         if value:
@@ -1117,7 +1086,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 self.display.canvas.deSelectShape()
                 self.zoomDisplay.canvas.deSelectShape()
         
-    
     def shape_selection_changed(self, selected_shapes:list):
         self._no_selection_slot = True
         for shape in self.display.canvas.selectedShapes:
@@ -1128,12 +1096,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.label_list.clearSelection()
         self.display.canvas.selectedShapes = selected_shapes
         self.zoomDisplay.canvas.selectedShapes = selected_shapes
-        # for shape in self.display.canvas.selectedShapes:
-        #     self.shapes_to_items[shape].setSelected(True)
-            # shape.selected = True
-            # item = self.label_list.findItemByShape(shape)
-            # self.label_list.selectItem(item)
-            # self.label_list.scrollToItem(item)
         self._noSelectionSlot = False
         n_selected = len(selected_shapes)
         self.actions.delete.setEnabled(n_selected)
@@ -1307,8 +1269,13 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.display.canvas.setAllShapeVisible(False)
             self.zoomDisplay.canvas.setAllShapeVisible(False)
 
-    def save_label(self, current_slice: int, display_shapes: List[Shape], add_new_shape = False):
-        """
+    def save_shapes_to_nodules(self, current_slice: int, display_shapes: List[Shape], add_new_shape = False):
+        """Save shapes in canvas to self.results_nodule
+        There are two cases:
+            1. Create new shape on canvas
+            2. Edit shape on canvas
+        After create or edit, we need to save the shapes to self.results_nodule
+        
         Args:
             current_slice: int
                 current slice number
@@ -1350,13 +1317,15 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     self.results_nodule[current_slice].append(shapes[0])
                 
     def save_all_labels(self):
+        """
+        Click save button to save log file
+        """
         def saved_notify():
             ok = QMessageBox.Ok
             msg = u'The label is saved'
             return QMessageBox.information(self, u'Notify', msg, ok)
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())   
+        
+        self.save_shapes_to_nodules(self.current_slice, self.display.shapes())   
         if self.results_nodule is None or len(self.results_nodule) <= 0:
             self.results_nodule = {}
         if self.label_file is None:
@@ -1617,10 +1586,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.actions.next.setEnabled(True)
         # self.inference_button.setEnabled(True)
         self.log_button.setEnabled(True)
+        
+        self.update_and_get_segmentation_btn_status(reset=True)
         self.segmentation_button.setEnabled(False)
+       
         self.slider.setEnabled(True)
-        # self.toggle_segment_mode(True)
-        # self.pathology_text.setEnabled(True)
     """
     Processing in Canvas
     """
@@ -1638,7 +1608,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.lineEdit.setText(str(index + 1))
             if self.results_nodule is not None and self.current_slice in self.results_nodule.keys():
                 label_shape = list(self.results_nodule[self.current_slice])
-                # self.load_labels(bbox_to_shape(label_shape))
                 self.load_labels(label_shape)
             if mode:
                 self.toggle_draw_mode(mode)
@@ -1648,18 +1617,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.zoomDisplay.canvas.repaint()
         self.zoom_x, self.zoom_y = zoom_value
         
-    # def resizeEvent(self, event):
-    #     if self.canvas and not self.image.isNull() and self.zoom_mode != self.MANUAL_ZOOM:
-    #         self.adjust_scale()
-    #     super(MainWindow, self).resizeEvent(event)
-
     def zoom_area(self, x_origin, y_origin):
         x_zoom = x_origin * self.zoomDisplay.canvas.scale + self.zoomDisplay.canvas.offsetToCenter().x()
         y_zoom = y_origin * self.zoomDisplay.canvas.scale + self.zoomDisplay.canvas.offsetToCenter().y()
 
         self.zoomDisplay.setScroll(Qt.Horizontal, x_zoom - self.zoomDisplay.scroll_bars[Qt.Horizontal].pageStep()//2)
         self.zoomDisplay.setScroll(Qt.Vertical, y_zoom - self.zoomDisplay.scroll_bars[Qt.Vertical].pageStep()//2)
-        pass
 
     def jumpto(self, x_origin, y_origin, lock=False):
         if lock:
@@ -1687,11 +1650,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def _get_log_result_nodule(self, dict_nodule):
         self.slider.setStyleSheet(const.SLIDER_DEFAULT)
         self.results_nodule = dict_nodule
-        # self.set_dirty()
         self.dirty = False
         self.actions.save.setEnabled(True)
         self.update_analysis_table()
-        self.segmentation_button.setEnabled(True)
+        self.update_and_get_segmentation_btn_status(reset=True)
         self.confirm.setEnabled(True)
         self.current_slice = 1
         self.set_slider()
@@ -1700,9 +1662,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     """
 
     def open_next_image(self, _value=False):
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())
+        self.update_and_get_segmentation_btn_status(reset=True)
+        if self.auto_saving.isChecked() and self.dirty is True:
+            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
         if self.image_data_dict is None or self.data_size is None or self.data_size <=0:
             return
 
@@ -1712,9 +1674,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.set_slider()
 
     def open_prev_image(self, _value=False):
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())
+        self.update_and_get_segmentation_btn_status(reset=True)
+        if self.auto_saving.isChecked() and self.dirty is True:
+            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
         if self.image_data_dict is None or self.data_size is None or self.data_size <=0:
             return
 
@@ -1733,9 +1695,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     self.open_prev_image()
 
     def gotoClicked(self):
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())
+        if self.auto_saving.isChecked() and self.dirty is True:
+            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
 
         image_data = self.image_data_dict
         if self.data_size is not None and self.data_size > 0:
@@ -1798,7 +1759,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             )
         else:
             self.slider.setStyleSheet(const.SLIDER_DEFAULT)
-            pass
 
     """
     Plain Text for pathology
@@ -1912,9 +1872,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def load_slice_from_table_analysis(self):
         if not self.may_continue_text():
             return
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())
+        if self.auto_saving.isChecked() and self.dirty is True:
+            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
         items = self.table_analysis.selectedItems()
         self.view_lock = False
         if items != []:
@@ -1950,8 +1909,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.pathology_text.setEnabled(False)
                 
     def update_analysis_table(self):
-        if self.auto_saving.isChecked() and self.dirty:
-            self.save_label(self.current_slice, self.display.shapes())
+        if self.auto_saving.isChecked() and self.dirty is True:
+            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
             
         self.toggle_view_mode()
         if self.results_nodule is None or len(self.results_nodule) <= 0:
@@ -1971,13 +1930,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 self.table_analysis._addData(self.results_nodule_analysis)
             self.table_analysis.setEnabled(True)
             self.update_groove_color()
-        if not self.edit_on:
-            self.dirty = False
+        # if not self.edit_on:
+        #     self.dirty = False
         self.group_box_lung_nodule.setTitle("Total Lung Nodules:{:5d}".format(self.table_analysis.rowCount()))
         if self.current_slice is not None:    
             self.load_file(self.image_data_dict[self.current_slice]['data'], 
                             self.image_data_dict[self.current_slice]['path'],
                             self.image_data_dict[self.current_slice]['mode'])
+            
     def delete_item_analysis_table(self, id_no:int, list_remove:list, list_analysis:list):
         if len(list_remove) > 0:
             for remove_key in list_remove:
@@ -1997,16 +1957,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.load_file(self.image_data_dict[self.current_slice]['data'], 
                         self.image_data_dict[self.current_slice]['path'],
                         self.image_data_dict[self.current_slice]['mode'])
-        pass
 
-    def edit_item_analysis_table(self, edit_mode, list_slice):
-        if edit_mode:
-            self.edit_on += 1
-            # self.segmentation_button.setEnabled(False)
-        else:
-            self.edit_on -= 1
-            # if self.edit_on == 0:
-            #     self.segmentation_button.setEnabled(True)
+    def edit_item_analysis_table(self, edit_mode, list_slice: List[int]):
+        """
+        Click on the edit button in the analysis table(left bottom)
+        """
         for slice in list_slice:
             self.image_data_dict[slice]['mode'] = edit_mode
         self.update()
@@ -2036,8 +1991,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     ########## modified by Ben ##########
     def getNoduleAnalysis(self, pathtxt):
         if pathtxt and os.path.exists(pathtxt):
-        # dict_patient, dict_file = olap.merge_overlapping(olap.readtxt(pathtxt))
-        
             dict_patient, dict_file = olap.follow_patient(olap.readtxt(pathtxt))
             # if len(list(dict_patient.values())[0]) <= 1:
             #     pathtxt = os.path.join(self.dirname, "inference.txt")
@@ -2160,14 +2113,43 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.setEnabled(True)
         return True
 
+    def delete_points_and_lines_on_canvas(self):
+        shapes = self.display.shapes()
+        # Delete points and lines
+        self.display.canvas.shapes = [shape for shape in shapes if shape.shape_type != 'point' and shape.shape_type != 'line']
+        self.load_file(self.image_data_dict[self.current_slice]['data'], 
+                        self.image_data_dict[self.current_slice]['path'],
+                        self.image_data_dict[self.current_slice]['mode'])
+
+    def update_and_get_segmentation_btn_status(self, reset = None):
+        if not self.segmentation_button.isChecked() or reset:
+            self.segmentation_button.setText("Segmentation")
+            self.segmentation_button.setChecked(False)
+            self.segmentation_button.setEnabled(True)
+            
+            self.delete_points_and_lines_on_canvas()
+            self.toggle_segment_mode(False)
+            return False
+        else:
+            self.segmentation_button.setText("Cancel")
+            self.segmentation_button.setChecked(True)
+            self.segmentation_button.setEnabled(True)
+            self.segmentation_button.setEnabled(True)
+            
+            return True
+
     def click_segmentation_btn(self):
+        if not self.update_and_get_segmentation_btn_status():
+            self.set_view_mode()
+            return
         # Disable all buttons after first click
-        self.toggle_draw_mode(False, createMode='point')
+        self.toggle_draw_mode(False, createMode = 'point')
         self.actions.createMode.setEnabled(False)
         self.actions.createPolyMode.setEnabled(False)
         self.actions.editMode.setEnabled(False)
         self.actions.delete.setEnabled(False)
         self.actions.update.setEnabled(False)
+        self.add_button.setEnabled(False)
         
         # Reset progress bar
         self.progress_bar.reset()
@@ -2244,6 +2226,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                         self.image_data_dict[self.current_slice]['path'],
                         self.image_data_dict[self.current_slice]['mode'])
         self.toggle_segment_mode(False)
+        
+        self.segmentation_button.setChecked(False)
         self.click_segmentation_btn()
     
     def finish_segment(self):
@@ -2280,6 +2264,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         polygon, centers = get_polygon((self.pred_mask.astype(np.uint8) * 255))
         if polygon == None or centers == None:
             fail_segmentation()
+            self.update_and_get_segmentation_btn_status(reset=True)
             return
         
         # Start the loading animation
@@ -2361,6 +2346,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         finally:
             self.toggle_segment_mode(False)
             self.confirm.setEnabled(True)
+            self.update_and_get_segmentation_btn_status(reset=True)
             
             loading.stopAnimation()
             self.setEnabled(True)
@@ -2499,7 +2485,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                                             mask = pred_mask.astype(np.uint8))
                 shapes.append(shape)
 
-            self.save_label(slice_id, shapes, add_new_shape = True)
+            self.save_shapes_to_nodules(slice_id, shapes, add_new_shape = True)
             seq_points = np.array([list(centers[0]) + [1]], dtype = np.int64)
             return seq_points
 

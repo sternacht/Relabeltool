@@ -46,7 +46,7 @@ class Display(QtWidgets.QWidget):
         self.canvas.wheel_down.connect(self.open_next)
         self.canvas.zoomRequest.connect(self.zoom_request)
         # self.canvas.newShape.connect(self.new_shape)
-        self.canvas.shapeMoved.connect(self._set_dirty)
+        self.canvas.anyShapeChanged.connect(self._set_dirty)
         # self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
         self.canvas.scrollRequest.connect(self.scroll_request)
 

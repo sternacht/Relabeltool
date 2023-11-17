@@ -37,7 +37,7 @@ TITLE_STRING1 = "Lung Nodule Detection System"
 # TITLE_STRING3 = "Ver 2.0.8, 2022 by Chengda Robot Laboratory"
 # TITLE_STRING2 = "國立成功大學醫學院 醫學影像中心暨胸腔外科"
 TITLE_STRING2 = "國立成功大學醫學院 醫學影像中心暨胸腔外科及影像醫學部"
-TITLE_STRING3 = "Ver 2.0.11, 2023.10.27 by 成大機器人實驗室"
+TITLE_STRING3 = "Ver 2.0.12, 2023.11.17 by 成大機器人實驗室"
 
 ## Background
 BACKGROUND_COLOR_MAIN = "background-color:rgb(33,47,61);"

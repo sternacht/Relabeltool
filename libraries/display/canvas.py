@@ -39,7 +39,7 @@ class Canvas(QtWidgets.QWidget):
     scrollRequest = QtCore.pyqtSignal(int, int)
     newShape = QtCore.pyqtSignal()
     selectionChanged = QtCore.pyqtSignal(list)
-    shapeMoved = QtCore.pyqtSignal()
+    anyShapeChanged = QtCore.pyqtSignal()
     drawingPolygon = QtCore.pyqtSignal(bool)
     # vertexSelected = QtCore.pyqtSignal(bool)
     
@@ -503,25 +503,9 @@ class Canvas(QtWidgets.QWidget):
                 != self.shapes[index].points
             ):
                 self.storeShapes()
-                self.shapeMoved.emit()
+                self.anyShapeChanged.emit()
 
             self.movingShape = False
-
-    # def endMove(self, copy):
-    #     assert self.selectedShapes and self.selectedShapesCopy
-    #     assert len(self.selectedShapesCopy) == len(self.selectedShapes)
-    #     if copy:
-    #         for i, shape in enumerate(self.selectedShapesCopy):
-    #             self.shapes.append(shape)
-    #             self.selectedShapes[i].selected = False
-    #             self.selectedShapes[i] = shape
-    #     else:
-    #         for i, shape in enumerate(self.selectedShapesCopy):
-    #             self.selectedShapes[i].points = shape.points
-    #     self.selectedShapesCopy = []
-    #     self.repaint()
-    #     self.storeShapes()
-    #     return True
 
     def hideBackroundShapes(self, value):
         self.hideBackround = value
@@ -922,7 +906,7 @@ class Canvas(QtWidgets.QWidget):
                     != self.shapes[index].points
                 ):
                     self.storeShapes()
-                    self.shapeMoved.emit()
+                    self.anyShapeChanged.emit()
 
                 self.movingShape = False
 

@@ -48,7 +48,7 @@ class ZoomDisplay(QtWidgets.QWidget):
         self.canvas.zoomRequest.connect(self._zoom_request)
         self.canvas.scrollRequest.connect(self._scroll_request)
         self.canvas.newShape.connect(self._new_shape)
-        self.canvas.shapeMoved.connect(self._set_dirty)
+        self.canvas.anyShapeChanged.connect(self._set_dirty)
 
         scroll.setWidget(self.canvas)
         scroll.setWidgetResizable(True)
@@ -66,7 +66,6 @@ class ZoomDisplay(QtWidgets.QWidget):
         layout.setContentsMargins(0,0,0,0)
         layout.addWidget(self.scrollArea)
         self.setLayout(layout)
-        pass
 
     def _zoom_request(self, delta, pos):
         canvas_with_old = self.canvas.width()
