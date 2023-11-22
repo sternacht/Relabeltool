@@ -74,7 +74,7 @@ def points_to_mask(points: List[Tuple[int, int]], shape: Tuple[int, int, int]) -
 def get_timestamp(is_filename: bool = False) -> str:
     tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
     tw_time = datetime.datetime.now(tw_zone)
-    tw_time = tw_time + datetime.timedelta(minutes=5, seconds=10) # For CYCH
+    # tw_time = tw_time + datetime.timedelta(minutes=5, seconds=10) # For CYCH
     if is_filename:
         timestamp = tw_time.strftime(f"%y%m%d_%H%M%S")
     else:
