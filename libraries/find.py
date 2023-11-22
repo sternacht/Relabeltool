@@ -15,7 +15,8 @@ def read_patient_infor(path):
         "Gender": "0010|0040",
         "Date_of_Birth": "0010|0030",
         "Modality": "0008|0060",
-        "Date_of_Study": "0008|0020" 
+        "Date_of_Study": "0008|0020",
+        "Age": "0010|1010",
     }
     for key, value in patient_infor.items():
         if reader.HasMetaDataKey(value):
@@ -35,7 +36,10 @@ def read_patient_infor(path):
         patient_infor["Name"] = patient_infor["Name"].replace(" ", "")
     if patient_infor["Gender"] is not None:
         patient_infor["Gender"] = patient_infor["Gender"].replace(" ", "")
-
+        
+    if patient_infor["Age"] is not None:
+        patient_infor["Age"] = str(int(patient_infor["Age"].replace(" ", "").replace("Y", "")))
+        
     patient_infor["Style"] = "DICOM"
     return patient_infor
 

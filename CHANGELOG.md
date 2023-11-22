@@ -3,6 +3,15 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 - Shortcut keys Ctrl+J are not working.
+## [Unreleased]
+### Added
+- Added save patient csv feature.
+    - Steps:
+        1. open help menu
+        2. click "Save Patient Csv"
+        3. select start and end date
+        4. click "ok"
+
 ## [2.0.12] - 2023-11-17
 ### Fixed
 - In specific cases, the program may not ask user to save the changes before exiting the program.

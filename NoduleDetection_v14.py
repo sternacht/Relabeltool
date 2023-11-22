@@ -74,7 +74,7 @@ def points_to_mask(points: List[Tuple[int, int]], shape: Tuple[int, int, int]) -
 def get_timestamp(is_filename: bool = False) -> str:
     tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
     tw_time = datetime.datetime.now(tw_zone)
-    # tw_time = tw_time + datetime.timedelta(minutes=3, seconds=5) # For CYCH
+    tw_time = tw_time + datetime.timedelta(minutes=5, seconds=10) # For CYCH
     if is_filename:
         timestamp = tw_time.strftime(f"%y%m%d_%H%M%S")
     else:
@@ -578,6 +578,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         open_dicom = action("Open Dicom File", self.openDicomDialog, None, None, None, enabled= True)
         change_point_size = action("Change Point Size", lambda: change_size(self).exec_(), None, 'change size', 'change size')
         change_auto_refresh_freq = action("Change Auto Refresh Frequency", self.change_auto_refresh_frequency, None, 'change auto refresh', 'change auto refresh')
+        save_patient_csv = action("Save Patient Csv", self.save_patient_csv, None, 'save patient csv', 'save patient csv')
         
         zoom = QWidgetAction(self)
         zoom.setDefaultWidget(self.display.zoomWidget)
@@ -625,6 +626,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     status=show_confirm_status,
                     change_point_size = change_point_size,
                     change_auto_refresh_freq = change_auto_refresh_freq,
+                    save_patient_csv = save_patient_csv,
                     openImage = open_image_folder, openMhd = open_mhd, openDicom = open_dicom)
         
         self.menus = struct(
@@ -669,7 +671,60 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             fit_window, fit_width,
             change_point_size
         ))
-        add_actions(self.menus.help, (show_shortcut, show_confirm_status, change_auto_refresh_freq, None))
+        add_actions(self.menus.help, (show_shortcut, show_confirm_status, change_auto_refresh_freq, save_patient_csv, None))
+
+    def save_patient_csv(self):
+        def saved_notify(msg: str = "The patient csv is saved"):
+            ok = QMessageBox.Ok
+            return QMessageBox.information(self, u'Notify', msg, ok)
+        
+        date_range_dialog = SavePatientCsvDialog(self)
+        result = date_range_dialog.exec_()
+
+        if result == QDialog.Accepted:
+            start_date = date_range_dialog.start_date_edit.date().toPyDate()
+            end_date = date_range_dialog.end_date_edit.date().toPyDate()
+            
+            save_indicies = dict()
+            for i, patient_info in enumerate(self.history):
+                study_date = datetime.datetime.strptime(patient_info["Date_of_Study"], "%Y/%m/%d").date()
+                if start_date <= study_date <= end_date:
+                    save_indicies[i] = study_date
+            
+            if len(save_indicies) == 0:
+                saved_notify("There is no patient whose date of study is in the range of {} to {}".format(start_date, end_date))
+                return
+            sorted_indicies = sorted(save_indicies.keys(), key=lambda x: save_indicies[x])
+            header = "Patient_Name, Patient_ID, Age, Gender, confirmed, Date_of_Study"
+            lines = [header]
+            for i in sorted_indicies:
+                patient_info = self.history[i]
+                patient_name = patient_info["Name"].replace("^", " ")
+                patient_id = patient_info["PatientID"]
+                if not patient_info["PatientID"].isnumeric():
+                    continue
+                
+                if patient_info["Age"] != None:
+                    age = patient_info["Age"]
+                else:
+                    age = ''
+                    
+                line = "{},{},{},{},{},{}".format(patient_name,
+                                                patient_id,
+                                                age,
+                                                patient_info['Gender'],
+                                                'V' if patient_info['Confirmed'] != None else '',
+                                                patient_info['Date_of_Study'])
+                lines.append(line)
+            lines = "\n".join(lines)
+            
+            os.makedirs(PATIENT_CSV_FOLDER, exist_ok=True)
+            csv_filename = "{}_{}_patient.csv".format(start_date.strftime("%y%m%d"), end_date.strftime("%y%m%d"))
+            save_path = os.path.join(PATIENT_CSV_FOLDER, csv_filename)
+            with open(save_path, "w") as f:
+                f.write(lines)
+            
+            saved_notify()
 
     def actionConnect(self):
         open_menu = QMenu(self)

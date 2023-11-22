@@ -2,6 +2,9 @@ from PyQt5.QtGui import QColor
 
 PATH_DICOM = "./data/dicom"
 DICOM_DB = "./data/dicom.db"
+# PATH_DICOM = "/mnt/data/dicom"
+# DICOM_DB = "/mnt/data/dicom.db"
+PATIENT_CSV_FOLDER = "./patient.csv"
 # PATH_LOG = r"../Database_test/Log"
 
 
