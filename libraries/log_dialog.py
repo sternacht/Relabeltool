@@ -35,7 +35,7 @@ class help_dialog(QDialog):
 
         layout.addWidget(self.buttonBox)
 
-class SavePatientCsvDialog(QDialog):
+class ExportPatientExcelDialog(QDialog):
     update_text_signal = pyqtSignal(str)
     def __init__(self, parent = None):
         super().__init__(parent=parent)

@@ -8,12 +8,12 @@ from .database import Database
 
 logger = logging.getLogger(__name__)
 
-def gen_dicom_file_name_from_path(path: str) -> str:
+def gen_dicom_file_name_from_path(path: str) -> Tuple[str, List[int]]:
     """Generate the file name for dicom file from path string(Not Contain extension!)
 
-    Return:
-        the name of dicom file based on give arguments, e.g 'ID-000001_Std-0001_Ser-001'
-        a list of 'int string' that store id of patient, study and series, e.g ['000001','0001','001']
+    Return: tuple of (file_name, [patient_id, study_folder_index, series_folder_index])
+        First element is the name of dicom file based on give arguments, e.g 'ID-000001_Std-0001_Ser-001'
+        Second element is a list of 'int' that store id of patient, study and series, e.g ['000001','0001','001']
     """
     id_pattern = r'ID-(\d+)'
     study_pattern = r'Std-(\d+)'

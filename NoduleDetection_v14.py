@@ -578,7 +578,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         open_dicom = action("Open Dicom File", self.openDicomDialog, None, None, None, enabled= True)
         change_point_size = action("Change Point Size", lambda: change_size(self).exec_(), None, 'change size', 'change size')
         change_auto_refresh_freq = action("Change Auto Refresh Frequency", self.change_auto_refresh_frequency, None, 'change auto refresh', 'change auto refresh')
-        save_patient_csv = action("Save Patient Csv", self.save_patient_csv, None, 'save patient csv', 'save patient csv')
+        export_patient_excel = action("Export Patient Excel", self.export_patient_excel, None, 'export patient excel', 'export patient excel')
         
         zoom = QWidgetAction(self)
         zoom.setDefaultWidget(self.display.zoomWidget)
@@ -626,7 +626,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     status=show_confirm_status,
                     change_point_size = change_point_size,
                     change_auto_refresh_freq = change_auto_refresh_freq,
-                    save_patient_csv = save_patient_csv,
+                    export_patient_excel = export_patient_excel,
                     openImage = open_image_folder, openMhd = open_mhd, openDicom = open_dicom)
         
         self.menus = struct(
@@ -671,14 +671,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             fit_window, fit_width,
             change_point_size
         ))
-        add_actions(self.menus.help, (show_shortcut, show_confirm_status, change_auto_refresh_freq, save_patient_csv, None))
+        add_actions(self.menus.help, (show_shortcut, show_confirm_status, change_auto_refresh_freq, export_patient_excel, None))
 
-    def save_patient_csv(self):
-        def saved_notify(msg: str = "The patient csv is saved"):
+    def export_patient_excel(self):
+        def saved_notify(msg: str = "The patient excel is exported"):
             ok = QMessageBox.Ok
             return QMessageBox.information(self, u'Notify', msg, ok)
         
-        date_range_dialog = SavePatientCsvDialog(self)
+        date_range_dialog = ExportPatientExcelDialog(self)
         result = date_range_dialog.exec_()
 
         if result == QDialog.Accepted:
@@ -695,8 +695,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 saved_notify("There is no patient whose date of study is in the range of {} to {}".format(start_date, end_date))
                 return
             sorted_indicies = sorted(save_indicies.keys(), key=lambda x: save_indicies[x])
-            header = "Patient_Name, Patient_ID, Age, Gender, confirmed, Date_of_Study"
-            lines = [header]
+            
+            import openpyxl
+            workbook = openpyxl.Workbook()
+            sheet = workbook.active
+            sheet.append(["Patient_Name", "Patient_ID", "Age", "Gender", "Date_of_Study", "Confirmed", "Date_of_Confirmed"])
+            
             for i in sorted_indicies:
                 patient_info = self.history[i]
                 patient_name = patient_info["Name"].replace("^", " ")
@@ -708,21 +712,34 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     age = patient_info["Age"]
                 else:
                     age = ''
+                
+                
+                if patient_info['Confirmed'] != None:
+                    confirmed = 'V'
+                    # find the date of confirmed
+                    mask_folder = os.path.join(patient_info["Path"], 'mask')
+                    mask_file_name = gen_dicom_file_name_from_path(patient_info["Path"])[0] + '.npz'
+                    mask_path = os.path.join(mask_folder, mask_file_name)
+                    if not os.path.exists(mask_path):
+                        date_of_confirmed = ''
+                    else:
+                        date_of_confirmed = datetime.datetime.fromtimestamp(os.path.getmtime(mask_path)).strftime('%Y-%m-%d')
+                else:
+                    confirmed = ''
+                    date_of_confirmed = ''
                     
-                line = "{},{},{},{},{},{}".format(patient_name,
-                                                patient_id,
-                                                age,
-                                                patient_info['Gender'],
-                                                'V' if patient_info['Confirmed'] != None else '',
-                                                patient_info['Date_of_Study'])
-                lines.append(line)
-            lines = "\n".join(lines)
-            
-            os.makedirs(PATIENT_CSV_FOLDER, exist_ok=True)
-            csv_filename = "{}_{}_patient.csv".format(start_date.strftime("%y%m%d"), end_date.strftime("%y%m%d"))
-            save_path = os.path.join(PATIENT_CSV_FOLDER, csv_filename)
-            with open(save_path, "w") as f:
-                f.write(lines)
+                sheet.append([patient_name, 
+                              str(patient_id), 
+                              age, 
+                              patient_info['Gender'], 
+                              patient_info['Date_of_Study'].replace("/", "-"),
+                              confirmed,
+                              date_of_confirmed])
+                
+            os.makedirs(PATIENT_EXCEL_FOLDER, exist_ok=True)
+            excel_filename = "{}_{}_relabelTool.xlsx".format(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            excel_save_path = os.path.join(PATIENT_EXCEL_FOLDER, excel_filename)
+            workbook.save(excel_save_path)
             
             saved_notify()
 

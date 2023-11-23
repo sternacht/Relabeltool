@@ -3,14 +3,15 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 - Shortcut keys Ctrl+J are not working.
-## [Unreleased]
+## [2.0.13] - 2023-11-23
 ### Added
-- Added save patient csv feature.
+- Require openpyxl package to export patient excel.
+- Added export patient excel feature.
     - Steps:
-        1. open help menu
-        2. click "Save Patient Csv"
-        3. select start and end date
-        4. click "ok"
+        1. Open help menu
+        2. Click "Export Patient Excel"
+        3. Select start and end date
+        4. Click "ok"
 
 ## [2.0.12] - 2023-11-17
 ### Fixed
