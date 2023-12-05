@@ -3,6 +3,16 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 - Shortcut keys Ctrl+J are not working.
+## [2.0.14] - 2023-12-05
+### Added
+- Added fixed window resolution feature, it will fix the window resolution to 1920x1080.
+    - Steps:
+        - Option 1:
+            1. Open help menu
+            2. Click "Fixed Window Size"
+        - Option 2:
+            1. Use shortcut key "Alt+F"
+- Added 'Confirmed_user' column in the exported excel file.
 ## [2.0.13] - 2023-11-23
 ### Added
 - Require openpyxl package to export patient excel.

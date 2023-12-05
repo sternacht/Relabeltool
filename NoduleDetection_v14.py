@@ -74,7 +74,7 @@ def points_to_mask(points: List[Tuple[int, int]], shape: Tuple[int, int, int]) -
 def get_timestamp(is_filename: bool = False) -> str:
     tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
     tw_time = datetime.datetime.now(tw_zone)
-    # tw_time = tw_time + datetime.timedelta(minutes=5, seconds=10) # For CYCH
+    # tw_time = tw_time + datetime.timedelta(minutes=6, seconds=16) # For CYCH
     if is_filename:
         timestamp = tw_time.strftime(f"%y%m%d_%H%M%S")
     else:
@@ -706,23 +706,23 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             import openpyxl
             workbook = openpyxl.Workbook()
             sheet = workbook.active
-            sheet.append(["Patient_Name", "Patient_ID", "Age", "Gender", "Date_of_Study", "Confirmed", "Date_of_Confirmed"])
+            sheet.append(["Patient_Name", "Patient_ID", "Age", "Gender", "Date_of_Study", "Confirmed", "Confirmed_User", "Date_of_Confirmed"])
             
             for i in sorted_indicies:
                 patient_info = self.history[i]
                 patient_name = patient_info["Name"].replace("^", " ")
                 patient_id = patient_info["PatientID"]
-                if not patient_info["PatientID"].isnumeric():
-                    continue
+                # if not patient_info["PatientID"].isnumeric():
+                #     continue
                 
                 if patient_info["Age"] != None:
                     age = patient_info["Age"]
                 else:
                     age = ''
                 
-                
                 if patient_info['Confirmed'] != None:
                     confirmed = 'V'
+                    confirmed_user = patient_info['Confirmed_User']
                     # find the date of confirmed
                     mask_folder = os.path.join(patient_info["Path"], 'mask')
                     mask_file_name = gen_dicom_file_name_from_path(patient_info["Path"])[0] + '.npz'
@@ -734,6 +734,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 else:
                     confirmed = ''
                     date_of_confirmed = ''
+                    confirmed_user = ''
                     
                 sheet.append([patient_name, 
                               str(patient_id), 
@@ -741,6 +742,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                               patient_info['Gender'], 
                               patient_info['Date_of_Study'].replace("/", "-"),
                               confirmed,
+                              confirmed_user,
                               date_of_confirmed])
                 
             os.makedirs(PATIENT_EXCEL_FOLDER, exist_ok=True)

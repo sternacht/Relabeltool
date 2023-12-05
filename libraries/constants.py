@@ -1,19 +1,12 @@
 from PyQt5.QtGui import QColor
 
-<<<<<<< HEAD
-PATH_DICOM = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom"
-DICOM_DB = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom.db"
-=======
 PATH_DICOM = "./data/dicom"
 DICOM_DB = "./data/dicom.db"
-# PATH_DICOM = "/mnt/data/dicom"
-# DICOM_DB = "/mnt/data/dicom.db"
+# PATH_DICOM = "/mnt/data/dicom" # for docker
+# DICOM_DB = "/mnt/data/dicom.db" # for docker
 
 PATIENT_EXCEL_FOLDER = "./patient_excel"
 # PATIENT_EXCEL_FOLDER = "/root/patient_excel" # for docker
->>>>>>> 7cff15a51a9f60b10218cef0f68fd6426ab3651b
-# PATH_LOG = r"../Database_test/Log"
-
 
 SETTING_FILENAME = 'filename'
 SETTING_RECENT_FILES = 'recentFiles'
@@ -47,7 +40,7 @@ TITLE_STRING1 = "Lung Nodule Detection System"
 # TITLE_STRING3 = "Ver 2.0.8, 2022 by Chengda Robot Laboratory"
 # TITLE_STRING2 = "國立成功大學醫學院 醫學影像中心暨胸腔外科"
 TITLE_STRING2 = "國立成功大學醫學院 醫學影像中心暨胸腔外科及影像醫學部"
-TITLE_STRING3 = "Ver 2.0.13, 2023.11.23 by 成大機器人實驗室"
+TITLE_STRING3 = "Ver 2.0.14, 2023.12.05 by 成大機器人實驗室"
 
 ## Background
 BACKGROUND_COLOR_MAIN = "background-color:rgb(33,47,61);"
