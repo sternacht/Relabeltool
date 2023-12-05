@@ -39,7 +39,7 @@ class Canvas(QtWidgets.QWidget):
     scrollRequest = QtCore.pyqtSignal(int, int)
     newShape = QtCore.pyqtSignal()
     selectionChanged = QtCore.pyqtSignal(list)
-    shapeMoved = QtCore.pyqtSignal()
+    anyShapeChanged = QtCore.pyqtSignal()
     drawingPolygon = QtCore.pyqtSignal(bool)
     # vertexSelected = QtCore.pyqtSignal(bool)
     
@@ -503,25 +503,9 @@ class Canvas(QtWidgets.QWidget):
                 != self.shapes[index].points
             ):
                 self.storeShapes()
-                self.shapeMoved.emit()
+                self.anyShapeChanged.emit()
 
             self.movingShape = False
-
-    # def endMove(self, copy):
-    #     assert self.selectedShapes and self.selectedShapesCopy
-    #     assert len(self.selectedShapesCopy) == len(self.selectedShapes)
-    #     if copy:
-    #         for i, shape in enumerate(self.selectedShapesCopy):
-    #             self.shapes.append(shape)
-    #             self.selectedShapes[i].selected = False
-    #             self.selectedShapes[i] = shape
-    #     else:
-    #         for i, shape in enumerate(self.selectedShapesCopy):
-    #             self.selectedShapes[i].points = shape.points
-    #     self.selectedShapesCopy = []
-    #     self.repaint()
-    #     self.storeShapes()
-    #     return True
 
     def hideBackroundShapes(self, value):
         self.hideBackround = value
@@ -596,7 +580,7 @@ class Canvas(QtWidgets.QWidget):
         y1 = top - point.y()
         x2 = right - point.x()
         y2 = bottom - point.y()
-        self.offsets = QtCore.QPoint(x1, y1), QtCore.QPoint(x2, y2)
+        self.offsets = QtCore.QPoint(int(x1), int(y1)), QtCore.QPoint(int(x2), int(y2))
 
     def snapPointToCanvas(self, x, y):
         """
@@ -628,8 +612,8 @@ class Canvas(QtWidgets.QWidget):
         o2 = pos + self.offsets[1]
         if self.outOfPixmap(o2):
             pos += QtCore.QPoint(
-                min(0, self.pixmap.width() - o2.x()),
-                min(0, self.pixmap.height() - o2.y()),
+                int(min(0, self.pixmap.width() - o2.x())),
+                int(min(0, self.pixmap.height() - o2.y())),
             )
         # XXX: The next line tracks the new position of the cursor
         # relative to the shape, but also results in making it
@@ -922,7 +906,7 @@ class Canvas(QtWidgets.QWidget):
                     != self.shapes[index].points
                 ):
                     self.storeShapes()
-                    self.shapeMoved.emit()
+                    self.anyShapeChanged.emit()
 
                 self.movingShape = False
 

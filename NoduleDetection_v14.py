@@ -33,6 +33,22 @@ class SHAPETYPE:
     POLYGON = 'polygon'
     RECTANGLE = 'rectangle'
 
+class LoadModelThread(QThread):
+    MODEL_LOADED_SIGNAL = pyqtSignal(tuple)
+    def __init__(self, parent=None):
+        super().__init__(parent)
+    
+    def run(self):
+        from libraries.interactiveSegment import init_model
+        xml_path = r"./weights/interactive/fcanet.xml"
+        bin_path = r"./weights/interactive/fcanet.bin"
+        try:
+            interactiveModel, output_keys = init_model(xml_path=xml_path, bin_path=bin_path)
+            self.MODEL_LOADED_SIGNAL.emit((interactiveModel, output_keys))
+        except Exception as e:
+            print(e)
+            self.MODEL_LOADED_SIGNAL.emit((None, None))
+
 def points_to_mask(points: List[Tuple[int, int]], shape: Tuple[int, int, int]) -> np.ndarray:
     """Convert a list of points to a binary mask.
     
@@ -58,13 +74,12 @@ def points_to_mask(points: List[Tuple[int, int]], shape: Tuple[int, int, int]) -
 def get_timestamp(is_filename: bool = False) -> str:
     tw_zone = datetime.timezone(datetime.timedelta(hours=+8)) # Taiwan Timezone
     tw_time = datetime.datetime.now(tw_zone)
-    # tw_time = tw_time + datetime.timedelta(minutes=3, seconds=5) # For CYCH
+    # tw_time = tw_time + datetime.timedelta(minutes=5, seconds=10) # For CYCH
     if is_filename:
         timestamp = tw_time.strftime(f"%y%m%d_%H%M%S")
     else:
         timestamp = tw_time.strftime("%Y/%m/%d %H:%M:%S")
     return timestamp
-
 
 def read(filename, default=None):
     try:
@@ -121,13 +136,9 @@ class WindowUI_Mixin(object):
     def setStatusBar_custom(self, text = const.TITLE_STRING3):
         self.copyright_label = QLabel(text)
 
-        # setting up the border
-        # self.copyright_label.setStyleSheet("font-size: 20pt;")
-  
         # adding label to status bar
         self.statusBar().addPermanentWidget(self.copyright_label)
         
-
     def setNavigateArea(self):
         layout = QVBoxLayout()
         self.cursor= QLabel("")
@@ -138,23 +149,19 @@ class WindowUI_Mixin(object):
 
         bbox_label = QLabel("Manual Labelling")
         bbox_label.setStyleSheet(const.TEXT_FONT_MEDIUM)
-        self.segmentation_button = QPushButton("Segmentation")
-        # self.segmentation_button.setStyleSheet(const.TEXT_FONT_MEDIUM  )
+        self.segmentation_button = QPushButton("Segmentation", checkable=True)
         self.segmentation_button.setEnabled(False)
 
         note = QLabel("FG: Mouse Left\nBG: Mouse Right")
         note.setStyleSheet(const.TEXT_FONT_SMALL)
 
         self.undoSegment_button = QPushButton("Undo")
-        # self.undoSegment_button.setStyleSheet(const.TEXT_FONT_MEDIUM )
         self.undoSegment_button.setEnabled(False)
 
-        self.resetSegment_button = QPushButton("Reset")
-        # self.resetSegment_button.setStyleSheet(const.TEXT_FONT_MEDIUM )
-        self.resetSegment_button.setEnabled(False)
+        # self.resetSegment_button = QPushButton("Reset")
+        # self.resetSegment_button.setEnabled(False)
 
         self.finishSegment_button = QPushButton("Finish Segment")
-        # self.finishSegment_button.setStyleSheet(const.TEXT_FONT_MEDIUM )
         self.finishSegment_button.setEnabled(False)
 
         hlayout = QHBoxLayout()
@@ -166,7 +173,6 @@ class WindowUI_Mixin(object):
         self.progress_bar.setValue(1)
         hlayout.addWidget(progress_label)
         hlayout.addWidget(self.progress_bar)
-
 
         self.lineEdit = QLineEdit()
         self.lineEdit.setObjectName("lineEdit")
@@ -202,7 +208,7 @@ class WindowUI_Mixin(object):
         layout.addWidget(self.segmentation_button)
         layout.addWidget(note)
         layout.addWidget(self.undoSegment_button)
-        layout.addWidget(self.resetSegment_button)
+        # layout.addWidget(self.resetSegment_button)
         layout.addWidget(self.finishSegment_button)
         layout.addLayout(hlayout)
         layout.addStretch(1)
@@ -221,8 +227,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                  parent = None, 
                  ) -> None:
         super().__init__(parent)
-        self._init_paramters()
-        self.startParam()
+        self._init_params()
+        self._reset_params()
         
         self.setup_ui()
         self.set_actions()
@@ -233,22 +239,34 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         self._init_auto_refresh()
 
-    def _init_paramters(self):
+    def _init_params(self):
+        """
+        This function is used to initialize all parameters and just run once when the program is started.
+        """
         self.history = [] # A list of patients' information, e.g.: [{'PatientID': '000569', 'Gender':'F'}, {'PatientID': '001569', 'Gender':'M'}]
         self.loaded_path = set() # A set of loaded path, this is used to avoid loading the same path twice
 
         self.last_loaded_dicom_db_time = None
+        
+        self.dicom_db_path = const.DICOM_DB
+        self.point_size = 4
+        # Model
+        self.interactiveModel = None
+        self.output_keys = ['output']
     
     def _init_auto_refresh(self):
         self.last_refresh_time = time.time()
         self.auto_refresh_freqency = 60 # seconds
+        
         self.auto_refresh_timer = QTimer(self)
-        self.auto_refresh_timer.timeout.connect(self.refresh)
+        self.auto_refresh_timer.timeout.connect(self.refresh_patient_table)
         self.auto_refresh_timer.start(self.auto_refresh_freqency * 1000) # 1 minutes
     
-    def startParam(self):
-        "Initial or restart all parameter "
-        "Basic"
+    def _reset_params(self):
+        """
+        This function is used to initialize all parameters and run every time when select a new patient.
+        """
+        # Basic
         self.file_path = None
         self.mImgList = []
         self.dirname = ""
@@ -269,29 +287,25 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         self._no_selection_slot = False
         self.recent_files = []
-        self.spacing = (0.6,0.6,1)
+        self.spacing = (0.6, 0.6, 1)
         self.zoom_x = None
         self.zoom_y = None
-        self.point_size = 4
 
         # store the nodule group id need to adapt after propagation
         self.deleted_group_ids_after_propagation = set()
         # Mode default setting
         self.s = [] # keep total nodule on cur_slice for benign hidden mode
-        self.edit_on = 0
         self.hidden_on = False
         self.view_lock = False
 
-        # "Advanced"
+        # Advanced"
         self.image_data_dict = {}
         self.data_size = None
         self.keyboard_input = False
         self.wheel_scroll = False
         self.patient_infor = None
-        self.dicom_db_path = const.DICOM_DB
         # self.history_path = os.path.join(os.getcwd(),"history.dat")
         # self.history = pck.load(self.history_path)
-        
 
         self.update_recent_file()
         self.results_nodule = None # Dict[int, List[Dict[str, Any]]], dict of pair (int, list of dict), key is slice index, value is list of dict
@@ -305,14 +319,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.save_status = False
         self.path_log = ""
 
-        """Interactive Segmentation"""
-        self.interactiveModel = None
-        self.output_keys = ['output']
-        self.predmask = None
+        # Interactive Segmentation
+        self.pred_mask = None
 
     def setup_ui(self):
         self.setObjectName("MainWindow")
-        # self.resize(QApplication.desktop().width(), QApplication.desktop().height())
         self.setStyleSheet(open(os.path.abspath(r"libraries/BME_UI.stylesheet")).read())     
         self.centralwidget = QWidget(self)
         self.centralwidget.setObjectName("centralwidget")
@@ -351,7 +362,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.group_box_infor = QGroupBox("2. Patient Information")
         group_box_infor_layout = QHBoxLayout(self.group_box_infor)
         #List File Widget
-        self.refresh()
+        self.refresh_patient_table()
         self.listFileWidget = PatientInforTable()
         group_box_infor_layout.addWidget(self.listFileWidget)
         self.group_box_infor.setFixedWidth(int(self.window_size[0]*0.25)) # modified by Ben
@@ -381,7 +392,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         # Table Recall Precision Widget
         self.table_analysis = AnalysisTable(header=None)
-        self.table_analysis.setContentsMargins(0,0,0,0)
+        self.table_analysis.setContentsMargins(0, 0, 0, 0)
         self.table_analysis.setEnabled(False)
         # self.table_analysis.setMaximumWidth(QApplication.desktop().window().width()//3)
         # self.table_analysis.setMinimumHeight(QApplication.desktop().window().height()*0.15)
@@ -409,7 +420,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.view_button.setIcon(new_icon('eye'))
 
         tool_btns_layout = QHBoxLayout()
-        tool_btns_layout.setContentsMargins(0,0,2,0)
+        tool_btns_layout.setContentsMargins(0, 0, 2, 0)
         tool_btns_layout.addStretch(1)
         tool_btns_layout.addWidget(self.add_button)
         tool_btns_layout.addWidget(self.edit_button)
@@ -420,7 +431,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.label_list = QListWidget()
 
         listview_layout = QVBoxLayout()
-        listview_layout.setContentsMargins(0,0,0,0)
+        listview_layout.setContentsMargins(0, 0, 0, 0)
         listview_layout.addLayout(tool_btns_layout)
         listview_layout.addWidget(self.label_list, 1)
         self.edit_slice = QWidget()
@@ -433,8 +444,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         layout_plain_text = QHBoxLayout(self.group_plain_text)
         layout_plain_text.addWidget(self.pathology_text, 1)
 
-
-        ##Group Nodule
+        ## Group Nodule
         self.group_box_lung_nodule = QGroupBox("Lung Nodule")
         group_layout_lung_nodule = QHBoxLayout(self.group_box_lung_nodule)
         group_layout_lung_nodule.addWidget(self.table_analysis, 2)
@@ -445,7 +455,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.display.wheel_up.connect(self.open_prev_image)
         self.display.canvas.newShape.connect(self.new_shape)
         self.display.canvas.selectionChanged.connect(self.shape_selection_changed)
-        self.display.canvas.shapeMoved.connect(self.set_dirty)
+        self.display.canvas.anyShapeChanged.connect(self.set_dirty)
         self.display.edit_shape.connect(lambda shapes: self.zoomDisplay.update_shape(shapes))
         self.display.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
         self.display.canvas.pointSegment.connect(self.segmentation)
@@ -527,7 +537,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # self.table_analysis.setMinimumSize(int(self.window_size[0]/0.333), int(self.window_size[1]*0.15))
         # self.load_button.font().setPixelSize(int(self.window_size[0]*const.M_FONT/const.DEFAULT_WIN_WIDTH))
 
-    "Initial Function"
     def set_actions(self):
         action = partial(new_action, self)
         quit = action('Quit', self.close,
@@ -572,6 +581,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         open_dicom = action("Open Dicom File", self.openDicomDialog, None, None, None, enabled= True)
         change_point_size = action("Change Point Size", lambda: change_size(self).exec_(), None, 'change size', 'change size')
         change_auto_refresh_freq = action("Change Auto Refresh Frequency", self.change_auto_refresh_frequency, None, 'change auto refresh', 'change auto refresh')
+        export_patient_excel = action("Export Patient Excel", self.export_patient_excel, None, 'export patient excel', 'export patient excel')
         
         zoom = QWidgetAction(self)
         zoom.setDefaultWidget(self.display.zoomWidget)
@@ -619,6 +629,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     status=show_confirm_status,
                     change_point_size = change_point_size,
                     change_auto_refresh_freq = change_auto_refresh_freq,
+                    export_patient_excel = export_patient_excel,
                     openImage = open_image_folder, openMhd = open_mhd, openDicom = open_dicom)
         
         self.menus = struct(
@@ -667,14 +678,82 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             fit_window, fit_width,
             change_point_size
         ))
-        add_actions(self.menus.help, (show_shortcut, show_confirm_status, change_auto_refresh_freq, None))
-        pass
+        add_actions(self.menus.help, (show_shortcut, show_confirm_status, change_auto_refresh_freq, export_patient_excel, None))
+
+    def export_patient_excel(self):
+        def saved_notify(msg: str = "The patient excel is exported"):
+            ok = QMessageBox.Ok
+            return QMessageBox.information(self, u'Notify', msg, ok)
+        
+        date_range_dialog = ExportPatientExcelDialog(self)
+        result = date_range_dialog.exec_()
+
+        if result == QDialog.Accepted:
+            start_date = date_range_dialog.start_date_edit.date().toPyDate()
+            end_date = date_range_dialog.end_date_edit.date().toPyDate()
+            
+            save_indicies = dict()
+            for i, patient_info in enumerate(self.history):
+                study_date = datetime.datetime.strptime(patient_info["Date_of_Study"], "%Y/%m/%d").date()
+                if start_date <= study_date <= end_date:
+                    save_indicies[i] = study_date
+            
+            if len(save_indicies) == 0:
+                saved_notify("There is no patient whose date of study is in the range of {} to {}".format(start_date, end_date))
+                return
+            sorted_indicies = sorted(save_indicies.keys(), key=lambda x: save_indicies[x])
+            
+            import openpyxl
+            workbook = openpyxl.Workbook()
+            sheet = workbook.active
+            sheet.append(["Patient_Name", "Patient_ID", "Age", "Gender", "Date_of_Study", "Confirmed", "Date_of_Confirmed"])
+            
+            for i in sorted_indicies:
+                patient_info = self.history[i]
+                patient_name = patient_info["Name"].replace("^", " ")
+                patient_id = patient_info["PatientID"]
+                if not patient_info["PatientID"].isnumeric():
+                    continue
+                
+                if patient_info["Age"] != None:
+                    age = patient_info["Age"]
+                else:
+                    age = ''
+                
+                
+                if patient_info['Confirmed'] != None:
+                    confirmed = 'V'
+                    # find the date of confirmed
+                    mask_folder = os.path.join(patient_info["Path"], 'mask')
+                    mask_file_name = gen_dicom_file_name_from_path(patient_info["Path"])[0] + '.npz'
+                    mask_path = os.path.join(mask_folder, mask_file_name)
+                    if not os.path.exists(mask_path):
+                        date_of_confirmed = ''
+                    else:
+                        date_of_confirmed = datetime.datetime.fromtimestamp(os.path.getmtime(mask_path)).strftime('%Y-%m-%d')
+                else:
+                    confirmed = ''
+                    date_of_confirmed = ''
+                    
+                sheet.append([patient_name, 
+                              str(patient_id), 
+                              age, 
+                              patient_info['Gender'], 
+                              patient_info['Date_of_Study'].replace("/", "-"),
+                              confirmed,
+                              date_of_confirmed])
+                
+            os.makedirs(PATIENT_EXCEL_FOLDER, exist_ok=True)
+            excel_filename = "{}_{}_relabelTool.xlsx".format(start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
+            excel_save_path = os.path.join(PATIENT_EXCEL_FOLDER, excel_filename)
+            workbook.save(excel_save_path)
+            
+            saved_notify()
 
     def actionConnect(self):
         open_menu = QMenu(self)
         open_menu.addAction(self.actions.openDicom)
         open_menu.addAction(self.actions.openImage)
-        # open_menu.addAction(open_mhd)
     
         self.prevButton.setDefaultAction(self.actions.previous)
         self.nextButton.setDefaultAction(self.actions.next)
@@ -684,7 +763,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         
     def build_ui(self):
         "Create connections in User interface"
-        #Basic
+        # Basic
         self.update_file_menu()
         self.label_list.itemActivated.connect(self.label_selection_changed)
         self.label_list.itemSelectionChanged.connect(self.label_selection_changed)
@@ -703,7 +782,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # self.tableFile.itemSelectionChanged.connect(self.load_from_table)
         self.tableFile.itemDoubleClicked.connect(self.load_from_table)
         self.lineEdit.returnPressed.connect(self.gotoClicked)
-        # self.blood_vessel_CBox.toggled.connect(self.removeVesselClicked)
 
         self.edit_button.clicked[bool].connect(self.set_edit_mode)
         self.edit_button.setCheckable(True)
@@ -714,15 +792,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.view_button.setCheckable(True)
         self.reset_hidden_mode()
 
-        self.segmentation_button.clicked.connect(self.firstClickSegment)
+        self.segmentation_button.clicked.connect(self.click_segmentation_btn)
         self.undoSegment_button.clicked.connect(self.undo_shape_edit)
-        self.resetSegment_button.clicked.connect(self.reset_segmentation)
-        self.finishSegment_button.clicked.connect(self.finishSegment)
+        # self.resetSegment_button.clicked.connect(self.reset_segmentation)
+        self.finishSegment_button.clicked.connect(self.finish_segment)
 
-        # self.tableFile.clear()
-        # self.tableFile._addData(self.history)
-
-        #for talbe analysis
+        # for talbe analysis
         self.table_analysis.itemClicked.connect(self.load_slice_from_table_analysis)
         self.table_analysis.delete_signal.connect(self.delete_item_analysis_table)
         self.table_analysis.edit_signal.connect(self.edit_item_analysis_table)
@@ -739,8 +814,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         self.measure.clicked[bool].connect(self.measure_distance)
         self.measure.setCheckable(True)
-        self.refresh_button.clicked.connect(self.refresh)
-        pass
+        self.refresh_button.clicked.connect(self.refresh_patient_table)
 
     def reset(self):
         self.table_analysis.clear()
@@ -751,7 +825,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.slider.setStyleSheet(const.SLIDER_DEFAULT)
         self.slider.setEnabled(False)
 
-    def refresh(self):
+    def refresh_patient_table(self):
         if self.last_loaded_dicom_db_time == None or self.last_loaded_dicom_db_time != os.path.getmtime(self.dicom_db_path):
             with database.DicomDatabaseAPI(self.dicom_db_path) as dbapi:
                 self.history, self.loaded_path = refresh(self.history,
@@ -769,9 +843,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             sort_column = getattr(self.tableFile, "sortBy", 0)
             sort_reverse = getattr(self.tableFile, "sort_reverse", False)
             self.tableFile.sortByColumn(sort_column, Qt.SortOrder.DescendingOrder if sort_reverse else Qt.SortOrder.AscendingOrder)
+            
         # Update Last Modified
         timestamp = get_timestamp()
         self.group_box_select.setTitle("1. Select a Patient (Modified at {})".format(timestamp))
+        
     def load_recent(self, path):
         if self.may_continue():
             if os.path.isfile(path):
@@ -780,21 +856,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             else:
                 self.importImages(path, load_images)
 
-    def current_item(self):
-        items = self.label_list.selectedItems()
-        if items:
-            return items[0]
-        return None
-
     def update_file_menu(self):
         curr_file_path = self.file_path
-
-        def exists(filename):
-            return os.path.exists(filename)
         menu = self.menus.recentFiles
         menu.clear()
         files = [f for f in self.recent_files if f !=
-                 curr_file_path and exists(f)]
+                 curr_file_path and os.path.exists(f)]
         for i, f in enumerate(files):
             icon = new_icon('labels')
             action = QAction(
@@ -838,24 +905,24 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def closeEvent(self, a0:QCloseEvent):
         if not self.may_continue():
             a0.ignore()
+            return
         return super().closeEvent(a0)
 
     def errorMessage(self, title, message):
-        """
-        Show Warning Dialog
+        """Show Warning Dialog
         """
         return QMessageBox.critical(self, title,
                                     '<p><b>%s</b></p>%s' % (title, message))
 
     def inforMessage(self, title, message):
-        """
-        Show Infor Dialog
+        """Show Warning Dialog
         """
         return QMessageBox.information(self, title,
                                     '<p><b>%s</b></p>%s' % (title, message))
     
     def status(self, message, delay=5000):
-        "Show information in status bar"
+        """Show information in status bar
+        """
         self.statusBar().showMessage(message, delay)
 
     def show_confirmed_status(self):
@@ -870,13 +937,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         dialog.exec_()
     
     def keyReleaseEvent(self, event:QKeyEvent):
-        # if event.key() == Qt.Key_Control:
-        #     self.canvas.set_drawing_shape_to_square(False)
         return super().keyReleaseEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent):
-        # if event.key() == Qt.Key_Control:
-        #     self.canvas.set_drawing_shape_to_square(True)
         return super().keyPressEvent(event)
 
     def no_shapes(self):
@@ -886,23 +949,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.dirty = True
         self.save_status = True
         self.actions.save.setEnabled(True)
-
         # Even if we autosave the file, we keep the ability to undo
         self.actions.undo.setEnabled(self.display.canvas.isShapeRestorable)
-        
-        # if self._config["auto_save"] or self.actions.saveAuto.isChecked():
-        #     label_file = osp.splitext(self.imagePath)[0] + ".json"
-        #     if self.output_dir:
-        #         label_file_without_path = os.path.basename(label_file)
-        #         label_file = os.path.join(self.output_dir, label_file_without_path)
-        #     self.saveLabels(label_file)
-        #     return
-        # self.dirty = True
-        # self.actions.save.setEnabled(True)
-        # title = __appname__
-        # if self.filename is not None:
-        #     title = "{} - {}*".format(title, self.filename)
-        # self.setWindowTitle(title)
 
     def set_clean(self):
         self.dirty = False
@@ -948,8 +996,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.actions.undo.setEnabled(self.display.canvas.isShapeRestorable)
         self.undoSegment_button.setEnabled(self.display.canvas.isShapeRestorable)
         self.segmentation()
-
-
+            
     def toggle_drawing_sensitive(self, drawing=True):
         """In the middle of drawing, toggling between modes should be disabled."""
         self.actions.editMode.setEnabled(not drawing)
@@ -964,14 +1011,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.zoomDisplay.canvas.setEditing(True)
             self.zoomDisplay.canvas.restoreCursor()
 
-            # self.actions.createMode.setEnabled(True)
-
-
     def toggle_draw_mode(self, edit=True, createMode = "polygon"):
         # Display
         self.display.canvas.setEditing(edit)
         self.display.canvas.createMode = createMode
-
         # Zoom Display
         self.zoomDisplay.canvas.setEditing(edit)
         self.zoomDisplay.canvas.createMode = createMode
@@ -1012,12 +1055,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 raise ValueError("Unsupported createMode: %s" % createMode)
         self.actions.editMode.setEnabled(not edit)
 
-    def toggle_view_mode(self, view=True):
+    def toggle_view_mode(self, view = True):
         self.display.canvas.setViewing()
         self.zoomDisplay.canvas.setViewing()
+        
         self.actions.createMode.setEnabled(view)
         self.actions.editMode.setEnabled(view)
         self.actions.viewMode.setEnabled(not view)
+        
         if (not self.add_button.isChecked()) and (not self.edit_button.isChecked()):
             self.add_button.setEnabled(view)
             self.edit_button.setEnabled(view)
@@ -1026,16 +1071,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         elif self.edit_button.isChecked():
             self.toggle_draw_mode(True)
 
-    def toggle_segment_mode(self, value:bool):
-        # self.segmentation_button.setEnabled(value)
-        self.undoSegment_button.setEnabled(value)
-        self.resetSegment_button.setEnabled(value)
-        self.finishSegment_button.setEnabled(value)
-        self.confirm.setEnabled(False)
+    def toggle_segment_mode(self, enable: bool):
+        self.undoSegment_button.setEnabled(enable)
+        # self.resetSegment_button.setEnabled(enable)
+        self.finishSegment_button.setEnabled(enable)
+        # self.confirm.setEnabled(False)
 
     def set_create_mode(self, press=True):
         if press:
-            # self.toggle_view_mode(True)
             self.toggle_draw_mode(False, "polygon")
             self.update_table = True
         else:
@@ -1043,19 +1086,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def set_edit_mode(self, press=True):
         if press:
-            # self.toggle_view_mode(True)
             self.toggle_draw_mode(True, "rectangle")
             self.label_selection_changed()
             self.update_table = True
+            self.actions.update.setEnabled(True)
             self.set_dirty()
-            self.edit_on += 1
-            # self.segmentation_button.setEnabled(False)
         else:
-            self.edit_on -= 1
-            # if self.edit_on == 0:
-            #     self.segmentation_button.setEnabled(True)
             self.toggle_view_mode()
-
+            
     def reset_hidden_mode(self):
         self.view_button.setIcon(new_icon('eye'))
         self.view_button.setChecked(False)
@@ -1063,9 +1101,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def set_hidden_mode(self, press=True):
         if press:
-            if self.auto_saving.isChecked():
-                if self.dirty is True:
-                    self.save_label(self.current_slice, self.display.shapes())
+            if self.auto_saving.isChecked() and self.dirty is True:
+                    self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
             self.view_button.setIcon(new_icon('hidden'))
             self.hidden_on = True
             self.display.canvas.setAllShapeVisible(False)
@@ -1097,7 +1134,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.resizeEvent(None)
 
     def set_view_mode(self):
-        self.toggle_view_mode(True)   
+        if self.segmentation_button.isChecked():
+            self.update_and_get_segmentation_btn_status(reset=True)
+        self.toggle_view_mode(True)
 
     def set_fit_window(self, value=True):
         if value:
@@ -1133,7 +1172,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 self.display.canvas.deSelectShape()
                 self.zoomDisplay.canvas.deSelectShape()
         
-    
     def shape_selection_changed(self, selected_shapes:list):
         self._no_selection_slot = True
         for shape in self.display.canvas.selectedShapes:
@@ -1144,12 +1182,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.label_list.clearSelection()
         self.display.canvas.selectedShapes = selected_shapes
         self.zoomDisplay.canvas.selectedShapes = selected_shapes
-        # for shape in self.display.canvas.selectedShapes:
-        #     self.shapes_to_items[shape].setSelected(True)
-            # shape.selected = True
-            # item = self.label_list.findItemByShape(shape)
-            # self.label_list.selectItem(item)
-            # self.label_list.scrollToItem(item)
         self._noSelectionSlot = False
         n_selected = len(selected_shapes)
         self.actions.delete.setEnabled(n_selected)
@@ -1159,14 +1191,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def label_item_changed(self, item):
         shape = self.items_to_shapes[item]
         label = item.text()
-        # checked = item.checkState() == Qt.Checked
         f = item.font()
         # f.setStrikeOut(not checked)
         item.setFont(f)
-        # if not checked:
-        #     item.setBackground(QColor('gray'))
-        # else:
-        #     item.setBackground(shape.line_color)
         item.setBackground(shape.line_color)
         shape.checked = True
         self.items_to_shapes[item] = shape
@@ -1207,10 +1234,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         box = QComboBox(Form)   # 加入下拉選單
         box.addItems(['4','6','8','12'])   # 加入四個選項
-        box.setGeometry(10,10,200,30)
+        box.setGeometry(10, 10, 200, 30)
         box.currentIndexChanged.connect(point_size_update)
-
         Form.show()
+        
     def add_label(self, shape:Shape):
         shape.paint_label = self.display_label_option.isChecked()
         if shape.shape_type == 'point' or shape.shape_type == 'line':
@@ -1227,12 +1254,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         f = item.font()
         f.setStrikeOut(not checked)
         item.setFont(f)
-        # if not checked:
-        #     item.setBackground(QColor('gray'))
-        #     item.setCheckState(Qt.Unchecked)
-        #     self.display.canvas.setShapeVisible(shape, checked)
-        #     self.zoomDisplay.canvas.setShapeVisible(shape, checked)
-        # else:
         item.setBackground(shape.line_color)
         if not self.benign_hidden.isChecked() or shape.category > 0:
             self.items_to_shapes[item] = shape
@@ -1241,7 +1262,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         for action in self.actions.onShapesPresent:
             if action is not None:
                 action.setEnabled(True)
-        # self.update_combo_box()
         self.display.update()
         self.zoomDisplay.update()
 
@@ -1281,23 +1301,16 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         shape.close()
         line_color = const.id_color_nodule[category] if group_id is not None else const.id_color_nodule[4]
         fill_color = const.id_color_nodule_fill[category] if group_id is not None else const.id_color_nodule_fill[4]
-        if line_color:
-            shape.line_color = QColor(*line_color)
-        else:
-            # shape.line_color = generate_color_by_text(label)
-            shape.line_color = const.ColorBBox
-
-        if fill_color:
-            shape.fill_color = QColor(*fill_color)
-        else:
-            # shape.fill_color = generate_color_by_text(label)
-            shape.fill_color = const.ColorBBox
+        
+        shape.line_color = QColor(*line_color) if line_color else const.ColorBBox
+        shape.fill_color = QColor(*fill_color) if fill_color else const.ColorBBox
+            
         if rect is None:
             rect = polygon2rect(shape)
             shape.rect = rect
         if shape_type == 'polygon' and mask is None:
             mask = cv2.fillConvexPoly(np.zeros(self.mImgSize + [3]).astype(np.uint8),
-                                        np.array(points,dtype=np.int32),
+                                        np.array(points, dtype=np.int32),
                                         (255,255,255))
             mask = cv2.cvtColor(mask,cv2.COLOR_BGR2GRAY)
         return shape
@@ -1322,7 +1335,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                                     rect=sDict['rect'],
                                     mask=sDict['mask'] if 'mask' in sDict.keys() else None
                                     )
-
                 if not points:
                     continue
                 self.add_label(shape)
@@ -1343,8 +1355,13 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.display.canvas.setAllShapeVisible(False)
             self.zoomDisplay.canvas.setAllShapeVisible(False)
 
-    def save_label(self, current_slice: int, display_shapes: List[Shape], add_new_shape = False):
-        """
+    def save_shapes_to_nodules(self, current_slice: int, display_shapes: List[Shape], add_new_shape = False):
+        """Save shapes in canvas to self.results_nodule
+        There are two cases:
+            1. Create new shape on canvas
+            2. Edit shape on canvas
+        After create or edit, we need to save the shapes to self.results_nodule
+        
         Args:
             current_slice: int
                 current slice number
@@ -1386,13 +1403,15 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     self.results_nodule[current_slice].append(shapes[0])
                 
     def save_all_labels(self):
+        """
+        Click save button to save log file
+        """
         def saved_notify():
             ok = QMessageBox.Ok
             msg = u'The label is saved'
             return QMessageBox.information(self, u'Notify', msg, ok)
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())   
+        
+        self.save_shapes_to_nodules(self.current_slice, self.display.shapes())   
         if self.results_nodule is None or len(self.results_nodule) <= 0:
             self.results_nodule = {}
         if self.label_file is None:
@@ -1448,11 +1467,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             for i in range(len(self.history)):
                 if self.history[i]["Path"] == self.dirname:
                     self.history[i]["Confirmed"] = 'V'
+                    self.history[i]["Confirmed_User"] = self.user_name
                     break
             # Update the confirmed counts
             confirmed_counts = len(list(filter(lambda x: x["Confirmed"] == 'V', self.history)))
             self.tableFile.update_confirm_counts_header(confirmed_counts)
-            
         else:
             self.errorMessage("Resample mask failed")
             
@@ -1562,7 +1581,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.status("Error reading")
             loading.stopAnimation()
 
-        self.startParam()
+        self._reset_params()
         if not dirpath:
             # self.allEnable(False)
             return
@@ -1577,9 +1596,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.listFileWidget.clear()
         self.table_analysis.clear()
         self.pathology_text.reset_status()
-        # self.zoomDisplay.canvas.resetState()
-        # self.display.canvas.clear()
-        # self.zoomDisplay.canvas.clear()
         self.slider.setStyleSheet(const.SLIDER_DEFAULT)
         # self.slider.setEnabled(False)
         try:
@@ -1591,7 +1607,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             # self.patient_infor = preprocessing.get_patient_infor()
             
             objThreading = QThread()
-
             preprocessing.imageDataNList.connect(self.getImgData)
             preprocessing.imageDataDict.connect(self.getImageDict)
             preprocessing.errorSignal.connect(lambda :errorLoading(self))
@@ -1600,11 +1615,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             objThreading.started.connect(preprocessing.processing)
             objThreading.finished.connect(loading.stopAnimation)
             objThreading.start()
+            
+            self.setEnabled(False)
             while objThreading.isRunning():
-                self.setEnabled(False)
                 QApplication.processEvents()
             self.patient_infor = preprocessing.get_patient_infor()
-            
         except: 
             self.errorMessage(u'Error opening file',
                                 u"<p>Make sure <i></i> is a valid image file.")
@@ -1613,19 +1628,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # self.load_file(self.image_data[0], 0)
         self.setEnabled(True)
         if self.patient_infor is not None:
-
-
-            # self.tableFile._addRow_Dict(self.patient_infor)
             self.listFileWidget._addData(self.patient_infor)
-
-            # self.path_log = os.path.join(self.save_dir, "log")
             self.set_clean()
-            # self.remove_nonlung()
             self.show_display()
         self.reset_hidden_mode()
         self.group_box_lung_nodule.setTitle("Total Lung Nodules")
         self.confirm.setEnabled(False)
-    
 
     def getImgData(self, imgData, mImgList, mImgSize):
         """
@@ -1664,10 +1672,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.actions.next.setEnabled(True)
         # self.inference_button.setEnabled(True)
         self.log_button.setEnabled(True)
+        
+        self.update_and_get_segmentation_btn_status(reset=True)
         self.segmentation_button.setEnabled(False)
+       
         self.slider.setEnabled(True)
-        # self.toggle_segment_mode(True)
-        # self.pathology_text.setEnabled(True)
     """
     Processing in Canvas
     """
@@ -1685,28 +1694,25 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.lineEdit.setText(str(index + 1))
             if self.results_nodule is not None and self.current_slice in self.results_nodule.keys():
                 label_shape = list(self.results_nodule[self.current_slice])
-                # self.load_labels(bbox_to_shape(label_shape))
                 self.load_labels(label_shape)
-            if mode:
-                self.toggle_draw_mode(mode)
+                
+            if not self.segmentation_button.isChecked():
+                if mode:
+                    self.toggle_draw_mode(mode)
+                else:
+                    self.toggle_view_mode(not mode)
             else:
-                self.toggle_view_mode(not mode)
+                self.actions.update.setEnabled(False)
             self.display.canvas.repaint()
             self.zoomDisplay.canvas.repaint()
         self.zoom_x, self.zoom_y = zoom_value
         
-    # def resizeEvent(self, event):
-    #     if self.canvas and not self.image.isNull() and self.zoom_mode != self.MANUAL_ZOOM:
-    #         self.adjust_scale()
-    #     super(MainWindow, self).resizeEvent(event)
-
     def zoom_area(self, x_origin, y_origin):
         x_zoom = x_origin * self.zoomDisplay.canvas.scale + self.zoomDisplay.canvas.offsetToCenter().x()
         y_zoom = y_origin * self.zoomDisplay.canvas.scale + self.zoomDisplay.canvas.offsetToCenter().y()
 
         self.zoomDisplay.setScroll(Qt.Horizontal, x_zoom - self.zoomDisplay.scroll_bars[Qt.Horizontal].pageStep()//2)
         self.zoomDisplay.setScroll(Qt.Vertical, y_zoom - self.zoomDisplay.scroll_bars[Qt.Vertical].pageStep()//2)
-        pass
 
     def jumpto(self, x_origin, y_origin, lock=False):
         if lock:
@@ -1734,11 +1740,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def _get_log_result_nodule(self, dict_nodule):
         self.slider.setStyleSheet(const.SLIDER_DEFAULT)
         self.results_nodule = dict_nodule
-        # self.set_dirty()
         self.dirty = False
         self.actions.save.setEnabled(True)
         self.update_analysis_table()
-        self.segmentation_button.setEnabled(True)
+        self.update_and_get_segmentation_btn_status(reset=True)
         self.confirm.setEnabled(True)
         self.current_slice = 1
         self.set_slider()
@@ -1747,9 +1752,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     """
 
     def open_next_image(self, _value=False):
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())
+        # if self.auto_saving.isChecked() and self.dirty is True:
+        self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
+        self.update_and_get_segmentation_btn_status(reset=True)
         if self.image_data_dict is None or self.data_size is None or self.data_size <=0:
             return
 
@@ -1759,9 +1764,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.set_slider()
 
     def open_prev_image(self, _value=False):
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())
+        # if self.auto_saving.isChecked() and self.dirty is True:
+        self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
+        self.update_and_get_segmentation_btn_status(reset=True)
         if self.image_data_dict is None or self.data_size is None or self.data_size <=0:
             return
 
@@ -1780,9 +1785,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     self.open_prev_image()
 
     def gotoClicked(self):
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())
+        if self.auto_saving.isChecked() and self.dirty is True:
+            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
 
         image_data = self.image_data_dict
         if self.data_size is not None and self.data_size > 0:
@@ -1845,7 +1849,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             )
         else:
             self.slider.setStyleSheet(const.SLIDER_DEFAULT)
-            pass
 
     """
     Plain Text for pathology
@@ -1959,9 +1962,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     def load_slice_from_table_analysis(self):
         if not self.may_continue_text():
             return
-        if self.auto_saving.isChecked():
-            if self.dirty is True:
-                self.save_label(self.current_slice, self.display.shapes())
+        if self.auto_saving.isChecked() and self.dirty is True:
+            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
         items = self.table_analysis.selectedItems()
         self.view_lock = False
         if items != []:
@@ -1997,35 +1999,35 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.pathology_text.setEnabled(False)
                 
     def update_analysis_table(self):
-        if self.auto_saving.isChecked() and self.dirty:
-            self.save_label(self.current_slice, self.display.shapes())
+        if self.auto_saving.isChecked() and self.dirty is True:
+            self.save_shapes_to_nodules(self.current_slice, self.display.shapes())
             
         self.toggle_view_mode()
         if self.results_nodule is None or len(self.results_nodule) <= 0:
             return
-        if True: #self.dirty:
-            patient_ID = self.patient_infor['PatientID']
-            results_nodule = sorted(self.results_nodule.items())
-            dict_patient = {patient_ID : dict(results_nodule)}
-            patient_tracking = olap.collect3d(dict_patient)
-            self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
-            self.results_nodule = list(new_dict_patient.values())[0]
-            self.table_analysis.clear()
-            if self.results_nodule_analysis and len(self.results_nodule_analysis) > 0:
-                if self.benign_hidden.isChecked():
-                    self.table_analysis._addData(list(filter(lambda a: a["Category"] != "Benign" or a["data"][0][7]["shape_type"] == "polygon", self.results_nodule_analysis)))
-                else:
-                    self.table_analysis._addData(self.results_nodule_analysis)
-                self.table_analysis.setEnabled(True)
-                self.update_groove_color()
-            if not self.edit_on:
-                self.dirty = False
-            self.group_box_lung_nodule.setTitle("Total Lung Nodules:{:5d}".format(self.table_analysis.rowCount()))
-            if self.current_slice is not None:    
-                self.load_file(self.image_data_dict[self.current_slice]['data'], 
-                               self.image_data_dict[self.current_slice]['path'],
-                               self.image_data_dict[self.current_slice]['mode'])
-
+        
+        patient_ID = self.patient_infor['PatientID']
+        results_nodule = sorted(self.results_nodule.items())
+        dict_patient = {patient_ID : dict(results_nodule)}
+        patient_tracking = olap.collect3d(dict_patient)
+        self.results_nodule_analysis, new_dict_patient = olap.patientAnalysis(patient_tracking, self.spacing)
+        self.results_nodule = list(new_dict_patient.values())[0]
+        self.table_analysis.clear()
+        if self.results_nodule_analysis and len(self.results_nodule_analysis) > 0:
+            if self.benign_hidden.isChecked():
+                self.table_analysis._addData(list(filter(lambda a: a["Category"] != "Benign" or a["data"][0][7]["shape_type"] == "polygon", self.results_nodule_analysis)))
+            else:
+                self.table_analysis._addData(self.results_nodule_analysis)
+            self.table_analysis.setEnabled(True)
+            self.update_groove_color()
+        # if not self.edit_on:
+        #     self.dirty = False
+        self.group_box_lung_nodule.setTitle("Total Lung Nodules:{:5d}".format(self.table_analysis.rowCount()))
+        if self.current_slice is not None:    
+            self.load_file(self.image_data_dict[self.current_slice]['data'], 
+                            self.image_data_dict[self.current_slice]['path'],
+                            self.image_data_dict[self.current_slice]['mode'])
+            
     def delete_item_analysis_table(self, id_no:int, list_remove:list, list_analysis:list):
         if len(list_remove) > 0:
             for remove_key in list_remove:
@@ -2045,16 +2047,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.load_file(self.image_data_dict[self.current_slice]['data'], 
                         self.image_data_dict[self.current_slice]['path'],
                         self.image_data_dict[self.current_slice]['mode'])
-        pass
 
-    def edit_item_analysis_table(self, edit_mode, list_slice):
-        if edit_mode:
-            self.edit_on += 1
-            # self.segmentation_button.setEnabled(False)
-        else:
-            self.edit_on -= 1
-            # if self.edit_on == 0:
-            #     self.segmentation_button.setEnabled(True)
+    def edit_item_analysis_table(self, edit_mode, list_slice: List[int]):
+        """
+        Click on the edit button in the analysis table(left bottom)
+        """
         for slice in list_slice:
             self.image_data_dict[slice]['mode'] = edit_mode
         self.update()
@@ -2084,8 +2081,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
     ########## modified by Ben ##########
     def getNoduleAnalysis(self, pathtxt):
         if pathtxt and os.path.exists(pathtxt):
-        # dict_patient, dict_file = olap.merge_overlapping(olap.readtxt(pathtxt))
-        
             dict_patient, dict_file = olap.follow_patient(olap.readtxt(pathtxt))
             # if len(list(dict_patient.values())[0]) <= 1:
             #     pathtxt = os.path.join(self.dirname, "inference.txt")
@@ -2098,7 +2093,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             else:
                 self.results_nodule = {}
                 result_txt = ""
-                loading.close()
                 self.inforMessage("Not found", "Not find the nodule")
 
             #Save result into txt file
@@ -2192,16 +2186,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.setEnabled(False)
         QApplication.processEvents()
         
-        # # try:
-        #     # pathtxt = utils.runPytorchModel()
-        # pathtxt = os.path.join(self.dirname, "inference_FP_reduction.txt")
-        # t0 = time.time()
-        # # if not os.path.exists(pathtxt):
-        #     # pathtxt = utils.runPytorchModel(self.dirname)
-        # pathtxt = utils.runOpenvinoModel(self.dirname)
-        # # else:
-        # #     time.sleep(1)
-        # t1 = time.time()
         runInfer = inferenceThread(self.dirname)
         objThreading = QThread()
         runInfer.stringOutput.connect(getNoduleAnalysis)
@@ -2219,35 +2203,77 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.setEnabled(True)
         return True
 
-    """First Click Segmentation"""
-    def firstClickSegment(self):
-        from libraries.interactiveSegment import init_model
-        edit = False
-        self.toggle_draw_mode(edit, createMode='point')
-        self.actions.createMode.setEnabled(edit)
-        self.actions.createPolyMode.setEnabled(edit)
-        self.actions.editMode.setEnabled(edit)
-        self.actions.delete.setEnabled(edit)
-        self.actions.update.setEnabled(edit)
+    def delete_points_and_lines_on_canvas(self):
+        shapes = self.display.shapes()
+        # Delete points and lines
+        self.display.canvas.shapes = [shape for shape in shapes if shape.shape_type != 'point' and shape.shape_type != 'line']
+        self.load_file(self.image_data_dict[self.current_slice]['data'], 
+                        self.image_data_dict[self.current_slice]['path'],
+                        self.image_data_dict[self.current_slice]['mode'])
+
+    def update_and_get_segmentation_btn_status(self, reset = None):
+        if not self.segmentation_button.isChecked() or reset:
+            self.segmentation_button.setText("Segmentation")
+            self.segmentation_button.setChecked(False)
+            self.segmentation_button.setEnabled(True)
+            
+            self.delete_points_and_lines_on_canvas()
+            self.toggle_segment_mode(False)
+            return False
+        else:
+            self.segmentation_button.setText("Cancel")
+            self.segmentation_button.setChecked(True)
+            self.segmentation_button.setEnabled(True)
+            self.segmentation_button.setEnabled(True)
+            
+            return True
+
+    def click_segmentation_btn(self):
+        if not self.update_and_get_segmentation_btn_status():
+            self.set_view_mode()
+            return
+        # Disable all buttons after first click
+        if self.add_button.isChecked():
+            self.add_button.setChecked(False)
+            self.toggle_draw_mode(True)
+        if self.edit_button.isChecked():
+            self.edit_button.setChecked(False)
+            self.toggle_draw_mode(True)
+        self.toggle_draw_mode(False, createMode = 'point')
+        self.actions.createMode.setEnabled(False)
+        self.actions.createPolyMode.setEnabled(False)
+        self.actions.editMode.setEnabled(False)
+        self.actions.delete.setEnabled(False)
+        self.actions.update.setEnabled(False)
+        self.add_button.setEnabled(False)
+        
+        # Reset progress bar
         self.progress_bar.reset()
         self.progress_bar.setValue(0)
-        if self.interactiveModel is None:
-            loading = loadingDialog(self)
-            loading.setText("Loading the Interactive Model. Please wait....")
-            loading.startAnimation()
-            QApplication.processEvents()
+        
+        # If the model is not loaded, load it
+        if getattr(self, 'interactiveModel', None) is None:
+            self.loading = loadingDialog(self)
+            self.loading.setText("Loading the Interactive Model. Please wait....")
+            self.loading.startAnimation()
+            
+            load_model_thread = LoadModelThread(self)
+            load_model_thread.MODEL_LOADED_SIGNAL.connect(self.end_of_loading_model)
+            load_model_thread.start()
+            
             self.setEnabled(False)
-            try:
-                xml_path = r"./weights/interactive/fcanet.xml"
-                bin_path = r"./weights/interactive/fcanet.bin"
-                self.interactiveModel, self.output_keys = init_model(xml_path=xml_path, bin_path=bin_path)
-                loading.stopAnimation()
-                self.setEnabled(True)
-            except:
-                loading.stopAnimation()
-                self.errorMessage("Error Loading Model", "Please check again: {}".format(Exception))
-                self.setEnabled(True)
-
+            while load_model_thread.isRunning():
+                QApplication.processEvents()
+            
+    def end_of_loading_model(self, loaded_results: tuple):
+        if loaded_results[0] == None:
+            self.errorMessage("Error Loading Model", "Please check again: {}".format(Exception))
+        else:
+            model, output_keys = loaded_results
+            self.interactiveModel, self.output_keys = model, output_keys
+            
+        self.loading.stopAnimation()
+        self.setEnabled(True)
 
     def segmentation(self):
         from libraries.interactiveSegment import predict
@@ -2269,109 +2295,162 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         if self.interactiveModel is not None and len(seq_points) > 0:
             try:
                 self.toggle_segment_mode(True)
-                first_click = seq_points[0, :2]
+                last_click_coordinate = seq_points[-1, :2]
                 pred = predict(self.interactiveModel, self.image_data_dict[self.current_slice]['data'], seq_points, self.output_keys, if_sis=True, if_cuda=False)
-                self.predmask = pred
+                self.pred_mask = pred
                 merge = gene_merge(pred, self.image_data_dict[self.current_slice]['data'])
+                
                 image = QImage(merge.data, merge.shape[1], merge.shape[0], merge.shape[1]*3,  QImage.Format_RGB888)
                 self.display.canvas.loadPixmap(QPixmap.fromImage(image), clear_shapes=False)
                 self.zoomDisplay.canvas.loadPixmap(QPixmap.fromImage(image), clear_shapes=False)
-                self.zoom_area(first_click[0], first_click[1])
+                self.zoom_area(last_click_coordinate[0], last_click_coordinate[1])
 
             except:
                 self.errorMessage("Error Predict", "{}".format(Exception))
         else:
-            #self.firstClickSegment()
-            self.load_file(self.image_data_dict[self.current_slice]['data'], 
-                            self.image_data_dict[self.current_slice]['path'],
-                            self.image_data_dict[self.current_slice]['mode'])
+            self.delete_points_and_lines_on_canvas()
+            # self.load_file(self.image_data_dict[self.current_slice]['data'], 
+            #                 self.image_data_dict[self.current_slice]['path'],
+            #                 self.image_data_dict[self.current_slice]['mode'])
             self.toggle_segment_mode(False)
 
     def reset_segmentation(self):
         shapes = self.display.shapes()
         
+        # Delete points and lines
         self.display.canvas.shapes = [shape for shape in shapes if shape.shape_type != 'point' and shape.shape_type != 'line']
         self.load_file(self.image_data_dict[self.current_slice]['data'], 
                         self.image_data_dict[self.current_slice]['path'],
                         self.image_data_dict[self.current_slice]['mode'])
         self.toggle_segment_mode(False)
-        self.firstClickSegment()
-    
-    def finishSegment(self):
-        # def findPoint(point, rectangle):
-        #     if point is None and rectangle is None:
-        #         return False
-        #     if (point[0] > rectangle[0] and point[0] < rectangle[2] and
-        #         point[1] > rectangle[1] and point[1] < rectangle[3]) :
-        #         return True
-        #     else :
-        #         return False
-        def overlap_with_rectangle(pred, rect) -> bool:
-            pred_mask = pred[rect[1]:rect[3],rect[0]:rect[2]]
-            if pred_mask.sum() > 0:
-                return True
-            return False 
-        def overlap_with_polygon(pred_mask, mask) -> bool:
-            if np.logical_and(pred_mask, mask).sum() > 0:
-                return True
-            return False
         
+        self.segmentation_button.setChecked(False)
+        self.click_segmentation_btn()
+    
+    def finish_segment(self):
+        
+        def overlap_with_rectangle(pred_mask: np.ndarray, rect: np.ndarray) -> bool:
+            pred_mask = pred_mask[rect[1]:rect[3], rect[0]:rect[2]]
+            return (pred_mask.sum() > 0)
+        def overlap_with_polygon(pred_mask: np.ndarray, mask: np.ndarray) -> bool:
+            return (np.logical_and(pred_mask, mask).sum() > 0)
+        def fail_segmentation():
+            self.errorMessage("Error Segmentation", f"None to save")
+            # Delete points
+            shapes = self.display.shapes()
+            deleted_shape_ids = set()
+            for shape_i, shape in enumerate(shapes):
+                if shape.group_id == None:
+                    deleted_shape_ids.add(shape_i)
+            deleted_shape_ids = reversed(sorted(list(deleted_shape_ids)))
+            for shape_i in deleted_shape_ids:
+                del shapes[shape_i]
+            self.loadShapes(shapes, replace=True)
+            
+            self.load_file(self.image_data_dict[self.current_slice]['data'], 
+                            self.image_data_dict[self.current_slice]['path'],
+                            self.image_data_dict[self.current_slice]['mode'])
+            # Restore the settings        
+            self.toggle_segment_mode(False)
+            self.confirm.setEnabled(True)
+            
         self.display.canvas.setViewing()
         self.zoomDisplay.canvas.setViewing()
-        polygon, centers = get_polygon((self.predmask.astype(np.uint8) * 255))
+        
+        # if there is no nodule in the current slice, then return
+        polygon, centers = get_polygon((self.pred_mask.astype(np.uint8) * 255))
         if polygon == None or centers == None:
-            self.errorMessage("Error Segmentation", f"None to save")
-        else:
-            shapes = self.display.shapes()
-            deleted_shape_ids = []
-            pred_mask = self.predmask.copy()
+            fail_segmentation()
+            self.update_and_get_segmentation_btn_status(reset=True)
+            return
+        
+        # Start the loading animation
+        loading = loadingDialog(self)
+        loading.setWindowTitle("Propagating ...")
+        loading.setText("Propagating the segmentation. Please wait....")
+        loading.startAnimation()
+        self.setEnabled(False)
+        try:
             # Check if the segmentation in current slice overlap with the previous segmentation
-            for points, center_point in zip(polygon, centers):
-                if center_point is None: 
+            # (1) If overlap and the previous annotation is a rectangle, then delete the previous segmentation
+            # (2) If overlap and the previous annotation is a polygon, then merge the two masks
+            shapes = self.display.shapes()
+            deleted_shape_ids = set()
+            merged_mask = self.pred_mask.copy()
+            for shape_i, shape in enumerate(shapes):
+                if shape.group_id == None:
+                    deleted_shape_ids.add(shape_i)
+                
+                elif shape.shape_type == SHAPETYPE.RECTANGLE and overlap_with_rectangle(self.pred_mask, np.array(shape.rect, dtype=np.int32)):
+                    deleted_shape_ids.add(shape_i)
+                    self.deleted_group_ids_after_propagation.add(shape.group_id)
+                    
+                elif shape.shape_type == SHAPETYPE.POLYGON:
+                    polygon_points = [[point.x(), point.y()] for point in shape.points]
+                    polygon_mask = points_to_mask(polygon_points, self.mImgSize + [3])
+                    # if overlap, then merge the two masks
+                    if overlap_with_polygon(merged_mask, polygon_mask):
+                        merged_mask = np.logical_or(merged_mask, polygon_mask).astype(np.uint8)
+                        deleted_shape_ids.add(shape_i)
+            
+            # If there are multiple nodules in the current slice, then split the merged mask into multiple masks
+            if len(polygon) > 1 or len(centers) > 1:
+                num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(merged_mask.astype(np.uint8), 8)
+                masks = []
+                for i in range(1, num_labels):
+                    nodule_mask = np.zeros_like(merged_mask, dtype=np.uint8)
+                    nodule_mask[labels == i] = 1
+                    masks.append(nodule_mask)
+            else:
+                masks = [merged_mask]
+            
+            is_any_success = False
+            for i, mask in enumerate(masks):
+                # Update UI
+                loading.setText("Propagating the segmentation({}/{})".format(i+1, len(masks)))
+                self.progress_bar.reset()
+                self.progress_bar.setValue(0)
+                
+                # Get the polygon and center point of the mask
+                polygon, centers = get_polygon(mask.astype(np.uint8) * 255)
+                if len(polygon) == 0 or len(centers) == 0:
                     continue
-                points = np.array(points)
-                for shape_i, shape in enumerate(shapes):
-                    if shape.shape_type == SHAPETYPE.RECTANGLE and overlap_with_rectangle(self.predmask, np.array(shape.rect, dtype=np.int32)):
-                        deleted_shape_ids.append(shape_i)
-                        self.deleted_group_ids_after_propagation.add(shape.group_id)
-                    elif shape.shape_type == SHAPETYPE.POLYGON:
-                        polygon_points = []
-                        for point in shape.points:
-                            polygon_points.append([point.x(), point.y()])
-                        polygon_mask = points_to_mask(polygon_points, self.mImgSize + [3])
-                        if overlap_with_polygon(pred_mask, polygon_mask):
-                            # Merge the two masks
-                            pred_mask = np.logical_or(pred_mask, polygon_mask).astype(np.uint8)
-                            deleted_shape_ids.append(shape_i)
-                
-                # Delete the overlapped shapes
-                deleted_shape_ids = reversed(sorted(deleted_shape_ids))
-                for shape_i in deleted_shape_ids:
-                    del shapes[shape_i]
-                
-                polygon, centers = get_polygon(pred_mask.astype(np.uint8) * 255)
+                is_any_success = True
                 # Add the new polygon shape to the canvas
                 shape = self.setDefautShape(label = 'nodule',
                                             points = polygon[0],
                                             shape_type = SHAPETYPE.POLYGON,
-                                            mask = pred_mask.astype(np.uint8))
+                                            mask = mask.astype(np.uint8))
                 shapes.append(shape)
-                    
+                # Use the points on current slice to propagate the segmentation to the neighboring slices
                 center_point = list(centers[0])
                 center_point.append(1)
-                
                 seq_points = np.array([center_point], dtype=np.int64)
+                self.propagate(mask, seq_points)
             
-            # Use the points on current slice to propagate the segmentation to the neighboring slices
-            self.propagate(seq_points)
-            self.load_file(self.image_data_dict[self.current_slice]['data'], 
-                            self.image_data_dict[self.current_slice]['path'],
-                            self.image_data_dict[self.current_slice]['mode'])
-            # print('load_shape')
-            # self.loadShapes(shapes, replace=True)
-        self.toggle_segment_mode(False)
-        self.confirm.setEnabled(True)
+            if is_any_success:
+                # Delete the overlapped shapes
+                deleted_shape_ids = reversed(sorted(list(deleted_shape_ids)))
+                for shape_i in deleted_shape_ids:
+                    del shapes[shape_i]
+                self.update_analysis_table()
+                self.load_file(self.image_data_dict[self.current_slice]['data'], 
+                                self.image_data_dict[self.current_slice]['path'],
+                                self.image_data_dict[self.current_slice]['mode'])
+                # self.loadShapes(shapes, replace=True)
+            else:
+                fail_segmentation()
+        finally:
+            self.toggle_segment_mode(False)
+            self.confirm.setEnabled(True)
+            self.update_and_get_segmentation_btn_status(reset=True)
+            
+            loading.stopAnimation()
+            self.setEnabled(True)
         
+        if is_any_success:
+            self.inforMessage("Propagate", "Propagate Finished")
+            
     def clean_canvas(self):
         cur_image = self.image_data_dict[self.current_slice]['data']
         image = QImage(cur_image, cur_image.shape[1], cur_image.shape[0], cur_image.shape[1]*3,  QImage.Format_RGB888)
@@ -2382,10 +2461,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.display.canvas.setAllShapeVisible(False)
         self.zoomDisplay.canvas.setAllShapeVisible(False)
 
-    def measure_distance(self, press):
+    def measure_distance(self, press: bool):
         if press:
             self.toggle_segment_mode(False)
-            #self.toggle_view_mode(True)
             if self.results_nodule and self.current_slice in self.results_nodule.keys():
                 nodule_mask = np.zeros(self.mImgSize + [3])
                 for nodules in self.results_nodule[self.current_slice]:
@@ -2413,15 +2491,15 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.toggle_view_mode(True)
             self.update()
 
-    def propagate(self, seq_points: np.ndarray):
+    def propagate(self, pred_mask: np.ndarray, seq_points: np.ndarray):
         """Propagate the segmentation to the neighboring slices.
         
         Args:
+            pred_mask: The predicted mask of current slice.
             seq_points: The points of polygon on current slice.
         """
         def numpy_iou(y_true: np.ndarray, y_pred: np.ndarray) -> float:
             """Calculate the IOU of two masks
-            
             """
             intersection = np.logical_and(y_true, y_pred)
             union = np.logical_or(y_true, y_pred)
@@ -2431,7 +2509,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         def remove_old_rects() -> None:
             """
             Remove the old rectangles that are overlapped with the propagated mask.
-            
             """
             if len(self.deleted_group_ids_after_propagation) == 0:
                 return
@@ -2450,15 +2527,13 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     
             self.deleted_group_ids_after_propagation.clear()
 
-        def combine_overlapped_nodule(slice_id: int, pred_mask: np.ndarray, is_current_slice: bool = False) -> np.ndarray:
+        def combine_overlapped_nodule(slice_id: int, pred_mask: np.ndarray) -> np.ndarray:
             """
             Args:
                 slice_id: int
                     The slice id of current slice.
                 pred_mask: np.ndarray
                     The predicted mask of current slice.
-                is_current_slice: bool
-                    Whether the current slice is the slice that the user clicked, if True, we need to update the shapes of canvas.
             """
             deleted_polygon_nodule_ids = []
             
@@ -2507,16 +2582,21 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                                             mask = pred_mask.astype(np.uint8))
                 shapes.append(shape)
 
-            self.save_label(slice_id, shapes, add_new_shape = True)
+            self.save_shapes_to_nodules(slice_id, shapes, add_new_shape = True)
             seq_points = np.array([list(centers[0]) + [1]], dtype = np.int64)
             return seq_points
 
-        def oneway_propagate(seq_points: np.ndarray, slice_id: int, toward: int, slice_range: List[int]) -> int:
-            previous_pred_mask = self.predmask.copy()
+        def oneway_propagate(predmask: np.ndarray, 
+                             seq_points: np.ndarray, 
+                             slice_id: int, 
+                             toward: int, 
+                             slice_range: List[int]) -> int:
+            previous_pred_mask = predmask.copy()
             seq_points = seq_points.copy()
             
             while slice_id in slice_range and len(seq_points) > 0:
                 try:
+                    QApplication.processEvents()
                     pred_mask = predict(self.interactiveModel,
                                         self.image_data_dict[slice_id]['data'],
                                         seq_points, 
@@ -2537,7 +2617,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                     self.errorMessage("Error Predict", f"{e}")
                     return slice_id
                 slice_id += toward
-                self.progress_bar.setValue(self.progress_bar.value() + 1)
+                self.progress_bar.setValue(min(self.progress_bar.value() + 1, 100))
             return slice_id
         
         from libraries.interactiveSegment import predict
@@ -2545,21 +2625,17 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         if self.interactiveModel is None:
             self.errorMessage("InteractiveModel is None")
             return
-        self.toggle_segment_mode(True)
         
         slice_range = range(1, len(self.image_data_dict))
         
         # Combine the predicted mask with the existing polygons
         # Propagate to the upper slices
-        upper_num = oneway_propagate(seq_points, self.current_slice - 1, -1, slice_range)
+        upper_num = oneway_propagate(pred_mask, seq_points, self.current_slice - 1, -1, slice_range)
         # Propagate to the lower slices
-        lower_num = oneway_propagate(seq_points, self.current_slice + 1, 1, slice_range)
+        lower_num = oneway_propagate(pred_mask, seq_points, self.current_slice + 1, 1, slice_range)
         
         remove_old_rects()
         self.progress_bar.setValue(100)
-        self.update_analysis_table()
-        self.inforMessage("Propagate", "Propagate Finished")
-        self.toggle_segment_mode(False)
       
     def change_auto_refresh_frequency(self):
         new_freq, ok = QInputDialog.getInt(self, 'Change Auto Refresh Frequency', 'Please input a number(seconds):', self.auto_refresh_freqency, 30, step=1)

@@ -35,6 +35,42 @@ class help_dialog(QDialog):
 
         layout.addWidget(self.buttonBox)
 
+class ExportPatientExcelDialog(QDialog):
+    update_text_signal = pyqtSignal(str)
+    def __init__(self, parent = None):
+        super().__init__(parent=parent)
+        self.init_ui()
+
+    def init_ui(self):
+        self.setGeometry(300, 300, 350, 300)
+        self.setWindowTitle('Select start and end date')
+
+        layout = QVBoxLayout()
+
+        start_label = QLabel('Start date:')
+        self.start_date_edit = QDateEdit(self)
+        start_date = QDate(2023, 9, 1)
+        self.start_date_edit.setDate(start_date)
+        self.start_date_edit.setCalendarPopup(True)
+        
+        end_label = QLabel('End date(included):')
+        self.end_date_edit = QDateEdit(self)
+        end_date = QDate.currentDate()
+        self.end_date_edit.setDate(end_date)
+        self.end_date_edit.setCalendarPopup(True)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        
+        layout.addWidget(start_label)
+        layout.addWidget(self.start_date_edit)
+        layout.addWidget(end_label)
+        layout.addWidget(self.end_date_edit)
+        layout.addWidget(button_box)
+
+        self.setLayout(layout)
+
 class ConfirmedStatusDialog(QDialog):
     def __init__(self, confirmed_status: Dict[str, int], parent = None):
         super().__init__(parent=parent)

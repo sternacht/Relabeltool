@@ -426,14 +426,7 @@ def patientAnalysis(patient_tracking:dict, spacing = (0.6, 0.6, 1)):
             threedV = np.max(length) * len(length) * spacing[0] * spacing[1] * spacing[2]
             diameter = np.round(pow(threedV, 1/3), 4)
 
-            try:
-                if bboxes[0][-1]['mode'] == 0:
-                    category_name, category_id = category_f(diameter)
-                else:
-                    category_id = bboxes[0][-1]['category']
-                    category_name = list_category[category_id]
-            except:
-                category_name, category_id = category_f(diameter)
+            category_name, category_id = category_f(diameter)
             
             # Find mark type
             mark_type = 'rectangle'

@@ -9,4 +9,5 @@ matplotlib
 SimpleITK
 torch
 torchvision
+openpyxl
 openvino

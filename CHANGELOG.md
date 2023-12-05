@@ -2,6 +2,36 @@
 ---
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
+- Shortcut keys Ctrl+J are not working.
+## [2.0.13] - 2023-11-23
+### Added
+- Require openpyxl package to export patient excel.
+- Added export patient excel feature.
+    - Steps:
+        1. Open help menu
+        2. Click "Export Patient Excel"
+        3. Select start and end date
+        4. Click "ok"
+
+## [2.0.12] - 2023-11-17
+### Fixed
+- In specific cases, the program may not ask user to save the changes before exiting the program.
+- When editing the nodule more than once, there are some unexpected behaviors.
+- When the user click "Cancel" button after closing the program, the program will close directly without asking the user to save the changes.
+### Changed
+- After selecting new patient, the program will not reset the model.
+- Remove the "Reset" button in the right section because it is be integrated into the "Segmentation" button.
+- After pressing the "Segmentation" button, its text will change to "Cancel".
+### Optimized
+- Change loading model method to thread to avoid the program freezing.
+- Removed redundant duplicate comments to optimize the code.
+
+## [2.0.11] - 2023-10-28
+### Added
+- Add loading progress bar when progating the nodule.
+### Fixed
+- Fix the bug that it cannot segment multiple nodules on the same slice simultaneously.
+- Removed redundant duplicate function calls to optimize the code.
 ## [2.0.10] - 2023-10-21
 ### Changed
 - Hide the patient which is not inferenced by the model.
