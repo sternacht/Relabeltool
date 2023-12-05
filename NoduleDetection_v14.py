@@ -272,8 +272,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.dirname = ""
         self.image_data = []
         self.mImgSize = None
-        self.window_size = [QApplication.desktop().width(),QApplication.desktop().height()]
-        
         self.index = 0  # self.cur_img_index
         self.current_slice = None
         self.img_count = len(self.mImgList)
@@ -520,22 +518,36 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.TotalImage.setText(_translate("MainWindow", "/Total Images"))
         self.group_box_lung_nodule.setTitle(_translate("MainWindow", "Total Lung Nodules"))
 
+    def toggleResizeOptions(self, disable: bool = False) -> None:
+        if disable:
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowMaximizeButtonHint)
+            self.setWindowFlags(self.windowFlags() & ~Qt.WindowMinimizeButtonHint)
+        else:
+            self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
+            self.setWindowFlags(self.windowFlags() | Qt.WindowMinimizeButtonHint)
+        self.show()
+        
     def resizeEvent(self, event) -> None:
         win_width, win_height = self.window_size
-        self.setFixedWidth(win_width)
-        self.setFixedHeight(win_height)
-        self.group_box_infor.setFixedWidth(int(win_width*0.25))
-        self.group_box_lung_nodule.setFixedWidth(int(win_width*0.48))
-        self.table_analysis.setMinimumHeight(int(win_height*0.15))
-        self.tableFile.setFixedHeight(int(win_height*0.20))
+        if self.fixed_window_size.isChecked():
+            self.setFixedWidth(win_width)
+            self.setFixedHeight(win_height)
+            self.toggleResizeOptions(True)
+        else: # not fixed window size
+            self.setMinimumSize(0, 0)
+            self.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)
+            self.toggleResizeOptions(False)
+        
+        self.group_box_lung_nodule.setFixedWidth(int(win_width * 0.48))
+        self.table_analysis.setMinimumHeight(int(win_height * 0.15))
+        self.tableFile.setFixedHeight(int(win_height * 0.20))
+        
         self.zoomDisplay.setMaximumWidth(int(self.zoomDisplay.height()*1.8))
         self.group_box_infor.setFixedWidth(int(win_width*0.25))
         if win_width > 1500 and win_width <=1920:
             self.label_list.setFixedWidth(int(self.group_box_lung_nodule.width()*0.20))
             self.edit_slice.setFixedWidth(int(self.group_box_lung_nodule.width()*0.20))
         return super().resizeEvent(event)
-        # self.table_analysis.setMinimumSize(int(self.window_size[0]/0.333), int(self.window_size[1]*0.15))
-        # self.load_button.font().setPixelSize(int(self.window_size[0]*const.M_FONT/const.DEFAULT_WIN_WIDTH))
 
     def set_actions(self):
         action = partial(new_action, self)
@@ -663,7 +675,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.fixed_window_size.setShortcut("Alt+F")
         self.fixed_window_size.setCheckable(True)
         self.fixed_window_size.setChecked(False)
-        self.fixed_window_size.triggered.connect(self.set_window_size)
+        self.fixed_window_size.triggered.connect(lambda: self.resizeEvent(None))
 
         add_actions(self.menus.file, (open, save, close, quit))
         add_actions(self.menus.edit, (create_mode, create_poly_mode , edit_mode, view_mode, leave_mode))
@@ -1127,13 +1139,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         for shape in self.zoomDisplay.canvas.shapes:
             shape.paint_label = self.display_label_option.isChecked()
         self.zoomDisplay.canvas.update()
-
-    def set_window_size(self):
-        if self.fixed_window_size.isChecked():
-            self.window_size = [1920, 1017]
-        else:
-            self.window_size = [QApplication.desktop().width(), QApplication.desktop().height()]
-        self.resizeEvent(None)
 
     def set_view_mode(self):
         if self.segmentation_button.isChecked():
@@ -2644,6 +2649,14 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         if ok:
             self.auto_refresh_freqency = new_freq
             self.auto_refresh_timer.setInterval(self.auto_refresh_freqency * 1000) # ms
+    
+    @property
+    def window_size(self):
+        if getattr(self, "fixed_window_size", None) is not None and self.fixed_window_size.isChecked():
+            return [1920, 1017]
+        else:
+            return [self.width(), self.height()]
+      
       
 def get_args():
     parser = argparse.ArgumentParser(description='Lung Nodule Detection')
