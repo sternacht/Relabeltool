@@ -254,6 +254,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.dirname = ""
         self.image_data = []
         self.mImgSize = None
+        self.window_size = [QApplication.desktop().width(),QApplication.desktop().height()]
         
         self.index = 0  # self.cur_img_index
         self.current_slice = None
@@ -339,8 +340,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
         # Table File Widget
         self.tableFile = TableWidget_List(header=None)
-        self.tableFile.setMaximumHeight(int(self.height()*0.25))
-        self.tableFile.setMinimumHeight(int(self.height()*0.20))
+        self.tableFile.setMaximumHeight(int(self.window_size[1]*0.25))
+        self.tableFile.setMinimumHeight(int(self.window_size[1]*0.20))
         self.group_box_select = QGroupBox("1. Select a Patient")
         
         group_layout_select = QVBoxLayout(self.group_box_select)
@@ -353,7 +354,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.refresh()
         self.listFileWidget = PatientInforTable()
         group_box_infor_layout.addWidget(self.listFileWidget)
-        self.group_box_infor.setFixedWidth(int(self.width()*0.25)) # modified by Ben
+        self.group_box_infor.setFixedWidth(int(self.window_size[0]*0.25)) # modified by Ben
 
         # Inference Button
         # self.inference_button = QPushButton("Inference...")
@@ -500,7 +501,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.statusBar().addPermanentWidget(self.label_coordinates)
         windowLayout.addLayout(self.action_layout)
         self.setCentralWidget(self.centralwidget)
-        
         self.retranslate_ui()
         QMetaObject.connectSlotsByName(self)
 
@@ -511,18 +511,21 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.group_box_lung_nodule.setTitle(_translate("MainWindow", "Total Lung Nodules"))
 
     def resizeEvent(self, event) -> None:
-        self.group_box_lung_nodule.setFixedWidth(int(self.width()*0.48))
-        self.table_analysis.setMinimumHeight(int(self.height()*0.15))
-        self.tableFile.setFixedHeight(int(self.height()*0.20))
+        win_width, win_height = self.window_size
+        self.setFixedWidth(win_width)
+        self.setFixedHeight(win_height)
+        self.group_box_infor.setFixedWidth(int(win_width*0.25))
+        self.group_box_lung_nodule.setFixedWidth(int(win_width*0.48))
+        self.table_analysis.setMinimumHeight(int(win_height*0.15))
+        self.tableFile.setFixedHeight(int(win_height*0.20))
         self.zoomDisplay.setMaximumWidth(int(self.zoomDisplay.height()*1.8))
-        win_width = self.width()
         self.group_box_infor.setFixedWidth(int(win_width*0.25))
         if win_width > 1500 and win_width <=1920:
             self.label_list.setFixedWidth(int(self.group_box_lung_nodule.width()*0.20))
             self.edit_slice.setFixedWidth(int(self.group_box_lung_nodule.width()*0.20))
         return super().resizeEvent(event)
-        # self.table_analysis.setMinimumSize(int(self.width()/0.333), int(self.height()*0.15))
-        # self.load_button.font().setPixelSize(int(self.width()*const.M_FONT/const.DEFAULT_WIN_WIDTH))
+        # self.table_analysis.setMinimumSize(int(self.window_size[0]/0.333), int(self.window_size[1]*0.15))
+        # self.load_button.font().setPixelSize(int(self.window_size[0]*const.M_FONT/const.DEFAULT_WIN_WIDTH))
 
     "Initial Function"
     def set_actions(self):
@@ -644,9 +647,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.display_label_option.setChecked(False)
         self.display_label_option.triggered.connect(self.set_display_label)
         # self.display_label_option.triggered.connect(self.toggle_paint_labels_option)
-        # self.change_point_size = QAction('Select Point Size', self)
-        # self.change_point_size.setEnabled(True)
-        # self.change_point_size.connect(self.change_shape_point_size)
+        # Add option to fix the window size to 1920*1080
+        self.fixed_window_size = QAction('Fixed Window Size', self)
+        self.fixed_window_size.setShortcut("Alt+F")
+        self.fixed_window_size.setCheckable(True)
+        self.fixed_window_size.setChecked(False)
+        self.fixed_window_size.triggered.connect(self.set_window_size)
 
         add_actions(self.menus.file, (open, save, close, quit))
         add_actions(self.menus.edit, (create_mode, create_poly_mode , edit_mode, view_mode, leave_mode))
@@ -654,6 +660,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             self.auto_saving,
             self.benign_hidden,
             self.display_label_option,
+            self.fixed_window_size,
             None,
             zoom_in, zoom_out, zoom_org, 
             None,
@@ -1081,6 +1088,13 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         for shape in self.zoomDisplay.canvas.shapes:
             shape.paint_label = self.display_label_option.isChecked()
         self.zoomDisplay.canvas.update()
+
+    def set_window_size(self):
+        if self.fixed_window_size.isChecked():
+            self.window_size = [1920, 1017]
+        else:
+            self.window_size = [QApplication.desktop().width(), QApplication.desktop().height()]
+        self.resizeEvent(None)
 
     def set_view_mode(self):
         self.toggle_view_mode(True)   
