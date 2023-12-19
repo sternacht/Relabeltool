@@ -826,7 +826,7 @@ class Canvas(QtWidgets.QWidget):
             if 0 <= ua <= 1 and 0 <= ub <= 1:
                 x = x1 + ua * (x2 - x1)
                 y = y1 + ua * (y2 - y1)
-                m = QtCore.QPoint((x3 + x4) / 2, (y3 + y4) / 2)
+                m = QtCore.QPoint(int((x3 + x4) / 2), int((y3 + y4) / 2))
                 d = distance(m - QtCore.QPoint(x2, y2))
                 yield d, i, (x, y)
 

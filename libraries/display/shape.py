@@ -431,8 +431,17 @@ class Shape(object):
         y1 = rect.y()
         x2 = x1 + rect.width()
         y2 = y1 + rect.height()
-        if rect.width() != 0.0 and rect.height() != 0.0:
-            self.rect = (x1,y1,x2,y2)
+        if rect.width() == 0.0:
+            if x2 >= 511:
+                x1 = 510
+            else:
+                x2 = x2+1
+        if rect.height() == 0.0:
+            if y2 >= 511:
+                y1 = 510
+            else:
+                y2 = y2+1
+        self.rect = (x1,y1,x2,y2)
 
     def shape2dict(self):
         shape_dict = {}

@@ -1,17 +1,7 @@
 from PyQt5.QtGui import QColor
 
-<<<<<<< HEAD
 PATH_DICOM = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom"
 DICOM_DB = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom.db"
-=======
-PATH_DICOM = "./data/dicom"
-DICOM_DB = "./data/dicom.db"
-# PATH_DICOM = "/mnt/data/dicom"
-# DICOM_DB = "/mnt/data/dicom.db"
-
-PATIENT_EXCEL_FOLDER = "./patient_excel"
-# PATIENT_EXCEL_FOLDER = "/root/patient_excel" # for docker
->>>>>>> 7cff15a51a9f60b10218cef0f68fd6426ab3651b
 # PATH_LOG = r"../Database_test/Log"
 
 

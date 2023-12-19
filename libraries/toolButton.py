@@ -27,6 +27,7 @@ class tool_button(QToolButton):
         p.drawComplexControl(QStyle.ComplexControl.CC_ToolButton, opt)
         p.end()
     
+    #9fe2bf
     __style_sheet = """
         QPushButton, QToolButton
         {
@@ -50,7 +51,7 @@ class tool_button(QToolButton):
 
         QPushButton::checked, QToolButton::checked
         {
-            background-color: #9fe2bf;
+            background-color: #FFD700;
             border-width: 2px;
             border-color: #bbe1fa;
             border-style: outset;
