@@ -3,6 +3,12 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 - Shortcut keys Ctrl+J are not working.
+## [2.0.15] - 2023-12-19
+### Fixed
+- When draw a polygon and it actually draw a line, it will crash the program.
+### Changed
+- Change the background color of the mode button to orange when the mode is selected.
+- Extract the version information to a separate file `__version__.py`.
 ## [2.0.14] - 2023-12-05
 ### Added
 - Added fixed window resolution feature, it will fix the window resolution to 1920x1080.

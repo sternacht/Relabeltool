@@ -25,6 +25,7 @@ import utils.mergeOverlapping as olap
 
 # import libraries.constants as const
 from libraries import *
+from libraries.__version__ import __version__
 import glob
 
 __appname__ = "2D Nodule Detection & Manual Labeling (RoboticLAB NCKU)"
@@ -133,7 +134,7 @@ class WindowUI_Mixin(object):
         title_layout.addWidget(logo_2)
         return title_layout
 
-    def setStatusBar_custom(self, text = const.TITLE_STRING3):
+    def setStatusBar_custom(self, text = __version__):
         self.copyright_label = QLabel(text)
 
         # adding label to status bar
