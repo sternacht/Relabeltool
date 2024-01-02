@@ -42,7 +42,8 @@ class Canvas(QtWidgets.QWidget):
     anyShapeChanged = QtCore.pyqtSignal()
     drawingPolygon = QtCore.pyqtSignal(bool)
     # vertexSelected = QtCore.pyqtSignal(bool)
-    
+    drawingFocusLine = QtCore.pyqtSignal(list, list)
+
     wheel_up = QtCore.pyqtSignal()
     wheel_down = QtCore.pyqtSignal()
     pointSegment = QtCore.pyqtSignal()
@@ -68,6 +69,7 @@ class Canvas(QtWidgets.QWidget):
             )
         self.num_backups = kwargs.pop("num_backups", 10)
         self.show_zoom_text = kwargs.pop("zoom_text", False)
+        self.canvas_type = kwargs.pop("canvas_type", "Zoom")
         super(Canvas, self).__init__(*args, **kwargs)
         # Initialise local state.
         self.mode = self.VIEW
@@ -441,8 +443,9 @@ class Canvas(QtWidgets.QWidget):
             self.currentPostion.emit(int(px), int(py))
 
             if self.viewing():
-                self.focus_center = [pos.x(), pos.y()]
-                self.focus_border = [10,10]
+                if self.canvas_type == "Display":
+                    self.focus_center = [pos.x(), pos.y()]
+                    self.focus_border = [10,10]
                 if pos.x() < 0: self.zoomX = 0
                 elif pos.x() > self.pixmap.width(): self.zoomX = self.pixmap.width()
                 else: self.zoomX = pos.x()
@@ -680,16 +683,16 @@ class Canvas(QtWidgets.QWidget):
         if not self.pixmap:
             return super(Canvas, self).paintEvent(event)
 
-        p = self._painter
-        p.begin(self)
-        p.setRenderHint(QtGui.QPainter.Antialiasing)
-        p.setRenderHint(QtGui.QPainter.HighQualityAntialiasing)
-        p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
+        painter = self._painter
+        painter.begin(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setRenderHint(QtGui.QPainter.HighQualityAntialiasing)
+        painter.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
 
-        p.scale(self.scale, self.scale)
-        p.translate(self.offsetToCenter())
+        painter.scale(self.scale, self.scale)
+        painter.translate(self.offsetToCenter())
 
-        p.drawPixmap(0, 0, self.pixmap)
+        painter.drawPixmap(0, 0, self.pixmap)
 
         # Draw zoom text
         if self.show_zoom_text:
@@ -701,9 +704,9 @@ class Canvas(QtWidgets.QWidget):
             font.setPointSize(12)
             font.setBold(True)
             text = "x{:.1f}".format(self.scale)
-            p.setPen(pen)
-            p.setFont(font)
-            p.drawText(position_x, position_y, text)
+            painter.setPen(pen)
+            painter.setFont(font)
+            painter.drawText(position_x, position_y, text)
 
         Shape.scale = self.scale
         # Shape.spacing = self.spacing
@@ -713,15 +716,15 @@ class Canvas(QtWidgets.QWidget):
             ):
                 
                 shape.fill = shape.selected or shape == self.hShape
-                shape.paint(p, self.viewing())
+                shape.paint(painter, self.viewing())
         if self.current:
             self.current.spacing = self.spacing
-            self.current.paint(p, self.viewing())
+            self.current.paint(painter, self.viewing())
             self.line.spacing = self.spacing
-            self.line.paint(p, self.viewing())
+            self.line.paint(painter, self.viewing())
         if self.selectedShapesCopy:
             for s in self.selectedShapesCopy:
-                s.paint(p, self.viewing())
+                s.paint(painter, self.viewing())
                 
         if (
             self.fillDrawing()
@@ -733,29 +736,22 @@ class Canvas(QtWidgets.QWidget):
             drawing_shape.addPoint(self.line[1])
             drawing_shape.fill = True
             drawing_shape.spacing = self.spacing
-            drawing_shape.paint(p, self.viewing())
+            drawing_shape.paint(painter, self.viewing())
 
         if self.focus_center != None:
-            self.focus_line.paint(p, self.focus_center, self.focus_border)
-        p.end()
+            self.paint_focus_line(painter, self.focus_center, self.focus_border)
+            # patiner should end before draw another canvas, so DO NOT try to move this out
+            painter.end()
+            if self.canvas_type == "Display":
+                self.drawingFocusLine.emit(self.focus_center, self.focus_border)
+        else:
+            painter.end()
 
-    def paint_focus_line(self):
+    def paint_focus_line(self, painter, focus_center, focus_border):
         if not self.pixmap:
             return super(Canvas, self).paintEvent(None)
-
-        p = self._painter
-        p.begin(self)
-        p.setRenderHint(QtGui.QPainter.Antialiasing)
-        p.setRenderHint(QtGui.QPainter.HighQualityAntialiasing)
-        p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
-
-        p.scale(self.scale, self.scale)
-        p.translate(self.offsetToCenter())
-
-        p.drawPixmap(0, 0, self.pixmap)
-        print(self.focus_center)
         if self.focus_center != None:
-            self.focus_line.paint(p, self.focus_center, self.focus_border)
+            self.focus_line.paint(painter, focus_center, focus_border)
 
     def clear(self):
         self.pixmap = QtGui.QPixmap()
@@ -1018,9 +1014,9 @@ class Canvas(QtWidgets.QWidget):
     def restoreCursor(self):
         QtWidgets.QApplication.restoreOverrideCursor()
 
-    def reset_focus_line(self):
-        self.focus_border = None
-        self.focus_center = None
+    def set_focus_line(self, center, border):
+        self.focus_border = border
+        self.focus_center = center
 
     def resetState(self):
         self.restoreCursor()

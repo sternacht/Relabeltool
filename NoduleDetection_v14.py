@@ -793,7 +793,7 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         # self.load_button.clicked.connect(self.openDicomDialog)
         self.display.canvas.currentPostion.connect(self.set_cursor)
         self.display.canvas.zoomPixmap.connect(self.jumpto)
-
+        self.display.drawing_focus_lines.connect(self.drawing_on_zoom)
         # self.tableFile.itemSelectionChanged.connect(self.load_from_table)
         self.tableFile.itemDoubleClicked.connect(self.load_from_table)
         self.lineEdit.returnPressed.connect(self.gotoClicked)
@@ -1755,6 +1755,15 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.confirm.setEnabled(True)
         self.current_slice = 1
         self.set_slider()
+
+    def drawing_on_zoom(self, center, border):
+        self.zoomDisplay.canvas.set_focus_line(center, border)
+        self.zoomDisplay.canvas.repaint()
+    
+    def drawing_on_display_and_zoom(self, center, border):
+        self.display.canvas.set_focus_line(center, border)
+        self.display.canvas.repaint()
+
     """
     Process in navigate area
     """
@@ -1818,8 +1827,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         pass
 
     def slider_changed(self):
-        # self.zoomDisplay.canvas.reset_focus_line()
-        # self.display.canvas.reset_focus_line()
+        # self.zoomDisplay.canvas.set_focus_line(None, None)
+        # self.display.canvas.set_focus_line(None, None)
         value = self.slider.value()
         image_data = self.image_data_dict
         if self.data_size is not None and self.data_size > 0:
@@ -1982,11 +1991,12 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
             for nodule_infor in self.results_nodule_analysis:
                 if nodule_infor['NoduleID'] == noduleId:
                     self.pathology_text.setText(nodule_infor)
-                    data = nodule_infor['data'][0][1:5]
-                    x_cen = int((data[0] + data[2])//2)
-                    y_cen = int((data[1] + data[3])//2)
+                    x1, y1, x2, y2 = nodule_infor['data'][0][1:5]
+                    x_cen = int((x1 + x2)//2)
+                    y_cen = int((y1 + y2)//2)
                     self.zoom_x = x_cen
                     self.zoom_y = y_cen
+                    # rectangle = nodule_infor['rect']
                     continue
             curr_slice = int(float(item[0]))
             imageData = self.image_data_dict
@@ -1997,8 +2007,11 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
                 #                 imageData[self.current_slice]['mode'])
                 self.jumpto(self.zoom_x, self.zoom_y)
                 self.set_slider()
+                
             self.pathology_text.setEnabled(True)
             # pass
+        self.drawing_on_display_and_zoom([x_cen, y_cen], [x2-x1+10, y2-y1+10])
+
     
     def on_selectionChange(self, selected, deselected):
         if not self.may_continue_text():

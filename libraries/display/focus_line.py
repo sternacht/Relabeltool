@@ -4,13 +4,13 @@ from PyQt5 import QtWidgets
 class FocusLine(QtWidgets.QWidget):
     def __init__(self):
         self.pen = QtGui.QPen(QtGui.QColor(255, 215, 0, 255))
-        self.pen.setWidth(0)
+        self.pen.setWidth(1)
 
     def paint(self, painter:QtGui.QPainter, center, border_width):
         painter.setPen(self.pen)
         if center is not None:
             x, y = int(center[0]), int(center[1])
-            xbw, ybw = border_width
+            xbw, ybw = int(border_width[0]), int(border_width[1])
             painter.drawLine(0, y, max(x-xbw, 0), y)
             painter.drawLine(x, 0, x, max(y-ybw, 0))
             painter.drawLine(min(x+xbw, 511), y, 511, y)

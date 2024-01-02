@@ -9,6 +9,7 @@ class Display(QtWidgets.QWidget):
     edit_shape = QtCore.pyqtSignal(list)
     wheel_up = QtCore.pyqtSignal()
     wheel_down = QtCore.pyqtSignal()
+    drawing_focus_lines = QtCore.pyqtSignal(list, list)
     
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = list(range(3))
     def __init__(self, *args, **kwargs):
@@ -41,7 +42,8 @@ class Display(QtWidgets.QWidget):
         scroll = QtWidgets.QScrollArea()
         self.canvas = Canvas(epsilon= 10.0, 
                             double_click= "close",
-                            num_backups = 10)
+                            num_backups = 10,
+                            canvas_type='Display')
         self.canvas.wheel_up.connect(self.open_prev)
         self.canvas.wheel_down.connect(self.open_next)
         self.canvas.zoomRequest.connect(self.zoom_request)
@@ -49,6 +51,7 @@ class Display(QtWidgets.QWidget):
         self.canvas.anyShapeChanged.connect(self._set_dirty)
         # self.canvas.drawingPolygon.connect(self.toggle_drawing_sensitive)
         self.canvas.scrollRequest.connect(self.scroll_request)
+        self.canvas.drawingFocusLine.connect(self.drawing_focus_line_on_zoom)
 
         scroll.setWidget(self.canvas)
         scroll.setWidgetResizable(True)
@@ -179,3 +182,5 @@ class Display(QtWidgets.QWidget):
     def _set_dirty(self):
         self.edit_shape.emit(self.canvas.shapes)
 
+    def drawing_focus_line_on_zoom(self, center, border):
+        self.drawing_focus_lines.emit(center, border)

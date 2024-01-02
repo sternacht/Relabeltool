@@ -173,3 +173,5 @@ class ZoomDisplay(QtWidgets.QWidget):
     def shapes(self):
         return self.canvas.shapes
 
+    # def drawing_focus_line(self, center, border):
+    #     self.canvas.paint_focus_line(center, border)
