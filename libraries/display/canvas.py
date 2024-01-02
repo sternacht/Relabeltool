@@ -4,7 +4,7 @@ from PyQt5 import QtWidgets
 from math import sqrt
 
 from .shape import Shape
-
+from .focus_line import FocusLine
 
 # TODO(unknown):
 # - [maybe] Find optimal epsilon value.
@@ -113,9 +113,11 @@ class Canvas(QtWidgets.QWidget):
         # Set widget options.
         self.setMouseTracking(True)
         self.setFocusPolicy(QtCore.Qt.WheelFocus)
-        self.zoomX =None
-        self.zoomY =None
-
+        self.zoomX = None
+        self.zoomY = None
+        self.focus_center = None
+        self.focus_border = None
+        self.focus_line = FocusLine()
         # Measure
         self.spacing = (0.6,0.6)
 
@@ -439,6 +441,8 @@ class Canvas(QtWidgets.QWidget):
             self.currentPostion.emit(int(px), int(py))
 
             if self.viewing():
+                self.focus_center = [pos.x(), pos.y()]
+                self.focus_border = [10,10]
                 if pos.x() < 0: self.zoomX = 0
                 elif pos.x() > self.pixmap.width(): self.zoomX = self.pixmap.width()
                 else: self.zoomX = pos.x()
@@ -447,6 +451,7 @@ class Canvas(QtWidgets.QWidget):
                 else: self.zoomY = pos.y()
                 if self.zoomX is not None and self.zoomY is not None:
                     self.zoomPixmap.emit(int(self.zoomX), int(self.zoomY), True)
+                self.repaint()
 
             
         elif ev.button() == QtCore.Qt.RightButton: 
@@ -717,7 +722,7 @@ class Canvas(QtWidgets.QWidget):
         if self.selectedShapesCopy:
             for s in self.selectedShapesCopy:
                 s.paint(p, self.viewing())
-
+                
         if (
             self.fillDrawing()
             and self.createMode == "polygon"
@@ -730,7 +735,27 @@ class Canvas(QtWidgets.QWidget):
             drawing_shape.spacing = self.spacing
             drawing_shape.paint(p, self.viewing())
 
+        if self.focus_center != None:
+            self.focus_line.paint(p, self.focus_center, self.focus_border)
         p.end()
+
+    def paint_focus_line(self):
+        if not self.pixmap:
+            return super(Canvas, self).paintEvent(None)
+
+        p = self._painter
+        p.begin(self)
+        p.setRenderHint(QtGui.QPainter.Antialiasing)
+        p.setRenderHint(QtGui.QPainter.HighQualityAntialiasing)
+        p.setRenderHint(QtGui.QPainter.SmoothPixmapTransform)
+
+        p.scale(self.scale, self.scale)
+        p.translate(self.offsetToCenter())
+
+        p.drawPixmap(0, 0, self.pixmap)
+        print(self.focus_center)
+        if self.focus_center != None:
+            self.focus_line.paint(p, self.focus_center, self.focus_border)
 
     def clear(self):
         self.pixmap = QtGui.QPixmap()
@@ -992,6 +1017,10 @@ class Canvas(QtWidgets.QWidget):
 
     def restoreCursor(self):
         QtWidgets.QApplication.restoreOverrideCursor()
+
+    def reset_focus_line(self):
+        self.focus_border = None
+        self.focus_center = None
 
     def resetState(self):
         self.restoreCursor()

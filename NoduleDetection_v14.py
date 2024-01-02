@@ -237,8 +237,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.build_ui()
         self.setStatusBar_custom()
         self.user_name = user_name
-
         self._init_auto_refresh()
+        self.resizeEvent(None)
 
     def _init_params(self):
         """
@@ -1818,6 +1818,8 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         pass
 
     def slider_changed(self):
+        # self.zoomDisplay.canvas.reset_focus_line()
+        # self.display.canvas.reset_focus_line()
         value = self.slider.value()
         image_data = self.image_data_dict
         if self.data_size is not None and self.data_size > 0:
@@ -2679,7 +2681,7 @@ if __name__ == "__main__":
     window = MainWindow(user_name = user_name)
     window.setWindowIcon(QIcon('./sources/detect.ico'))
     window.setWindowTitle(__appname__)
-    # window.show()
-    window.showMaximized()
+    window.show()
+    # window.showMaximized()
     # window.showFullScreen()
     sys.exit(app.exec_())

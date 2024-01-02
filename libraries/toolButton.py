@@ -21,6 +21,7 @@ class tool_button(QToolButton):
 
         iconSize:int = max(min(h, w) -2 * 5, min(h_min, w_min))
         opt.iconSize = QSize(iconSize, iconSize)
+        opt.iconSize = QSize(100, 100)
         self.w = iconSize
 
         p.begin(self)
@@ -33,15 +34,15 @@ class tool_button(QToolButton):
         {
             color: #ffffff;
             background-color: #7fb3d5;
-            border-width: 2px;
+            border-width: 1px;
             border-color: #bbe1fa;
             border-style: outset;
-            border-radius: 10px;
-            padding: 5px;
+            border-radius: 5px;
+            padding: 2px;
             font-family: Times New Roman;
             font: 20px;
-            padding-left: 5px;
-            padding-right: 5px;
+            width: 30px;
+            height: 36px;
         }
 
         QPushButton::pressed, QToolButton::pressed
@@ -52,15 +53,15 @@ class tool_button(QToolButton):
         QPushButton::checked, QToolButton::checked
         {
             background-color: #FFD700;
-            border-width: 2px;
+            border-width: 1px;
             border-color: #bbe1fa;
             border-style: outset;
-            border-radius: 10px;
-            padding: 5px;
+            border-radius: 5px;
+            padding: 2px;
             font-family: Times New Roman;
             font-size: 20px;
-            padding-left: 5px;
-            padding-right: 5px;
+            width: 30px;
+            height: 36px;
         }
 
         QPushButton:hover, QToolButton:hover
