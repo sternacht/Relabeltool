@@ -1,7 +1,7 @@
 from PyQt5.QtGui import QColor
 
-PATH_DICOM = "./data/dicom"
-DICOM_DB = "./data/dicom.db"
+PATH_DICOM = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom"
+DICOM_DB = r"C:\Users\nckubot65904\Documents\openfl_system_demo\dicom.db"
 # PATH_DICOM = "/mnt/data/dicom" # for docker
 # DICOM_DB = "/mnt/data/dicom.db" # for docker
 

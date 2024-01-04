@@ -3,6 +3,8 @@ import numpy as np
 import os
 import glob
 from typing import List, Tuple, Dict, Any
+from scipy.spatial.distance import pdist, squareform
+import cv2
 
 def readtxt(path:str):
     """
@@ -421,10 +423,25 @@ def patientAnalysis(patient_tracking:dict, spacing = (0.6, 0.6, 1)):
         patient_dict = {}
         for noduleId, data in noduleIds.items():
             bboxes = np.array(data)
+            nodule_info = list(bboxes[:, 7])
             slice_list = list(bboxes[:, 0])
             length = (bboxes[:, 3] - bboxes[:,1]) * (bboxes[:, 4] - bboxes[:,2])
-            threedV = np.max(length) * len(length) * spacing[0] * spacing[1] * spacing[2]
-            diameter = np.round(pow(threedV, 1/3), 4)
+            if (nodule_info[0]['shape_type'] != 'rectangle'):
+                # if nodule is marked as polygon, then compute the farest distance of two points as diameter.
+                points = nodule_info[np.argmax(length)]['points']
+                nodule_mask = cv2.fillConvexPoly(np.zeros([512,512,3]),
+                                                          np.array(points ,dtype=np.int32),
+                                                          (255,255,255))
+                non_zero_coords = np.transpose(np.nonzero(nodule_mask))
+                pairwise_distances = squareform(pdist(non_zero_coords))
+                max_distance_index = np.unravel_index(np.argmax(pairwise_distances), pairwise_distances.shape)
+                farthest_point_1 = non_zero_coords[max_distance_index[0]]
+                farthest_point_2 = non_zero_coords[max_distance_index[1]]
+                diameter = np.linalg.norm(farthest_point_1 - farthest_point_2) * spacing[1]
+            else:
+                # if nodule is marked as rectangle type, then compute sqrt of maximum area as diameter.
+                twoD_area = np.max(length) * spacing[0] * spacing[1]
+                diameter = np.round(pow(twoD_area, 1/2), 4)
 
             category_name, category_id = category_f(diameter)
             

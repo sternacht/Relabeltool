@@ -238,7 +238,7 @@ class Shape(object):
                         char_width = font_metric.width(string)
                         char_height = font_metric.height()
                         # print(char_width, char_height)
-                        outline = QtCore.QRect(min_x, min_y,  char_width,  char_height)
+                        outline = QtCore.QRect(int(min_x), int(min_y),  int(char_width),  int(char_height))
                         # painter.setPen(pen)
                         painter.fillRect(outline, QtGui.QColor(0,0,0,255))
                         pen = QtGui.QPen(QtGui.QColor(255,255,255,255))
