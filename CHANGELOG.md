@@ -3,6 +3,11 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 - Shortcut keys Ctrl+J are not working.
+## [2.0.17] - 2024-01-05
+## [2.0.16] - 2024-01-04
+### Changed
+- Update diameter measure rule
+    - We use 3D volumn to measure the nodule diameter before this patch. Now, it's measure by the Euclidean distance of farest two points in one slice. This is the common method used in medical filed.
 ## [2.0.15] - 2023-12-19
 ### Fixed
 - When draw a polygon and it actually draw a line, it will crash the program.
