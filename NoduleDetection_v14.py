@@ -1034,8 +1034,6 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
         self.zoomDisplay.canvas.setEditing(edit)
         self.zoomDisplay.canvas.createMode = createMode
         self.actions.viewMode.setEnabled(True)
-        self.add_button.setEnabled(not edit)
-        self.edit_button.setEnabled(edit)
         if edit == True:
             self.actions.createMode.setEnabled(edit)
             self.actions.createPolyMode.setEnabled(True)
@@ -1094,6 +1092,9 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def set_create_mode(self, press=True):
         if press:
+            if self.edit_button.isChecked():
+                self.toggle_view_mode()
+                self.edit_button.setChecked(False)
             self.toggle_draw_mode(False, "polygon")
             self.update_table = True
         else:
@@ -1101,6 +1102,10 @@ class MainWindow(QMainWindow, WindowUI_Mixin):
 
     def set_edit_mode(self, press=True):
         if press:
+            if self.add_button.isChecked():
+                self.toggle_view_mode()
+                self.add_button.setChecked(False)
+            
             self.toggle_draw_mode(True, "rectangle")
             self.label_selection_changed()
             self.update_table = True
