@@ -6,6 +6,7 @@
 ## [2.0.17] - 2024-01-05
 ## Changed
 - When click add or edit button in nodule analysis section, another pressed button will be released automatically.
+- Remove the edit button in nodule analysis section because it is be integrated into the add button.
 ## [2.0.16] - 2024-01-04
 ### Changed
 - Update diameter measure rule

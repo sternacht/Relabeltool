@@ -242,24 +242,30 @@ class AnalysisTable(QTableWidget):
                            "Slice Range",
                            "Diameter (mm)",
                            "Category",
-                           "Mark Type",
                            "Options"]
         else:
             self.header = header
         super().__init__(0, len(self.header))
-        self.setFont(QFont("Times New Roman", 15))
+        self.setFont(QFont("Times New Roman", 14))
         self.initial()
+        self.setContentsMargins(3,3,3,3)
+        
+        # Set header font
+        header_font = QFont("Times New Roman", 14, QFont.Bold)
+        self.horizontalHeader().setFont(header_font)
+        self.verticalHeader().setFont(header_font)
+
         class StyleDelegate_for_QTableWidget(QStyledItemDelegate):
             color_default = QColor("#aaedff")
 
-            def paint(self, painter: QPainter, option: 'QStyleOptionViewItem', index: QModelIndex):
+            def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex):
                 if option.state & QStyle.State_Selected:
                     option.palette.setColor(QPalette.ColorRole.HighlightedText, Qt.black)
                     color = self.combineColors(self.color_default, self.background(option, index))
                     option.palette.setColor(QPalette.ColorRole.Highlight, color)
                 QStyledItemDelegate.paint(self, painter, option, index)
 
-            def background(self,option: 'QStyleOptionViewItem', index: QModelIndex):
+            def background(self,option: QStyleOptionViewItem, index: QModelIndex):
                 item = self.parent().itemFromIndex(index)
                 if item:
                     if item.background() != QBrush():
@@ -345,30 +351,18 @@ class AnalysisTable(QTableWidget):
                 delete_button = tool_button(self)
                 delete_button.setIcon(new_icon('delete'))
                 delete_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-                # delete_button.setFixedWidth(100)
-                # delete_button.setStyleSheet(BUTTON_DEFAULT)
 
-                # Edit Button
-                edit_button = tool_button(self)
-                edit_button.setIcon(new_icon('editing'))
-                edit_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-                # edit_button.setFixedWidth(100)
-                # edit_button.setStyleSheet(BUTTON_DEFAULT)
 
                 btns_widget = QWidget()
                 btns_layout = QHBoxLayout(btns_widget)
                 btns_layout.setContentsMargins(0,0,0,0)
-                btns_layout.addWidget(edit_button)
                 btns_layout.addWidget(delete_button)
 
                 self.list_button.append(btns_widget)
                 self.list_combo.append(combobox)
                 
-                
                 self.setCellWidget(row, _column-1, btns_widget)
                 delete_button.clicked.connect(self.handle_remove)
-                edit_button.clicked[bool].connect(self.handle_edit)
-                edit_button.setCheckable(True)
                 
                 color = combobox.getCurrentColor()
                 try:
@@ -448,15 +442,6 @@ class AnalysisTable(QTableWidget):
             self.list_button.pop(index)
             self.list_combo.pop(index)
             self.update()
-
-    def handle_edit(self, pressed):
-        button = self.sender()
-        # print("table: ", pressed)
-        index = self.list_button.index(button.parent())
-        item = self.list_data[index]
-        slice_range = item['Slice_range']
-        self.edit_signal.emit(pressed, slice_range)
-        self.update()
 
     def sortByHeader(self, logicalIndex):
         if len(self.list_data) > 0:
