@@ -3,6 +3,9 @@
 ## [Known Bug]
 - In cases where two annotations overlap on the same slice, updating the nodule table results in the creation of two separate nodules. The expected behavior is to merge the two nodules in such scenarios.
 - Shortcut keys Ctrl+J are not working.
+## [2.0.18] - 2024-07-05
+## Fixed
+- In some case, there are some unexpected behaviors in metaddata of dicom file. It will cause the program crash.
 ## [2.0.17] - 2024-01-05
 ## Changed
 - When click add or edit button in nodule analysis section, another pressed button will be released automatically.

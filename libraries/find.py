@@ -38,7 +38,10 @@ def read_patient_infor(path):
         patient_infor["Gender"] = patient_infor["Gender"].replace(" ", "")
         
     if patient_infor["Age"] is not None:
-        patient_infor["Age"] = str(int(patient_infor["Age"].replace(" ", "").replace("Y", "")))
+        try:
+            patient_infor["Age"] = str(int(patient_infor["Age"].replace(" ", "").replace("Y", "")))
+        except:
+            patient_infor["Age"] = 0
         
     patient_infor["Style"] = "DICOM"
     return patient_infor
