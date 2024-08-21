@@ -10,4 +10,4 @@ SimpleITK
 torch
 torchvision
 openpyxl
-openvino
+openvino==2023.1.0
